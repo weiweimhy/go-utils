@@ -1,4 +1,4 @@
-module github.com/yourusername/go-utils
+module github.com/weiweimhy/go-utils
 
 go 1.23
 
