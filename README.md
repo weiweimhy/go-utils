@@ -456,6 +456,18 @@ go test ./...
 
 ### 常见问题
 
+**Q: 执行 `go get github.com/weiweimhy/go-utils/v2@latest` 报错 "does not contain package"**
+
+A: 这是 Go 模块代理缓存问题。解决方法：
+```bash
+# 清理模块缓存
+go clean -modcache
+
+# 使用明确的版本号而不是 @latest
+go get github.com/weiweimhy/go-utils/v2@v2.0.0
+go mod tidy
+```
+
 **Q: 升级后编译错误 "package not found"**
 
 A: 确保所有导入路径都已更新为 `/v2` 后缀，并运行 `go mod tidy`。
@@ -479,6 +491,15 @@ A: 修改 `go.mod` 并运行 `go mod tidy`：
 require github.com/weiweimhy/go-utils v1.0.2
 ```
 
+**Q: Go 模块代理更新延迟**
+
+A: Go 模块代理（如 proxy.golang.org）可能需要几分钟到几小时才能同步最新 tag。如果遇到问题：
+- 等待一段时间后重试
+- 使用 `GOPROXY=direct` 直接从 GitHub 获取：
+  ```bash
+  GOPROXY=direct go get github.com/weiweimhy/go-utils/v2@v2.0.0
+  ```
+
 ### 自动化升级脚本
 
 可以使用以下脚本自动升级（需要根据实际情况调整）：
@@ -487,8 +508,8 @@ require github.com/weiweimhy/go-utils v1.0.2
 #!/bin/bash
 # upgrade-to-v2.sh
 
-# 1. 更新 go.mod
-go get github.com/weiweimhy/go-utils/v2@latest
+# 1. 更新 go.mod（使用明确版本号）
+go get github.com/weiweimhy/go-utils/v2@v2.0.0
 
 # 2. 替换导入路径
 find . -name "*.go" -type f -exec sed -i 's|github.com/weiweimhy/go-utils"|github.com/weiweimhy/go-utils/v2"|g' {} +
