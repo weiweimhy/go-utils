@@ -82,26 +82,26 @@ func ToContext(ctx context.Context, l *zap.Logger) context.Context {
 }
 
 type CtxLogger struct {
-	ctx context.Context
+	Ctx context.Context
 	Log *zap.Logger
 }
 
-// NewCtxLogger 基于给定 ctx 获取/创建 logger，并将其写回新的 ctx
+// NewCtxLogger 基于给定 Ctx 获取/创建 logger，并将其写回新的 Ctx
 func NewCtxLogger(ctx context.Context, fields ...zap.Field) CtxLogger {
 	log := FromContext(ctx, fields...)
 	newCtx := ToContext(ctx, log)
 	return CtxLogger{
-		ctx: newCtx,
+		Ctx: newCtx,
 		Log: log,
 	}
 }
 
-// With 为当前 CtxLogger 附加字段，并返回新的 CtxLogger（同时更新 ctx 中的 logger）
+// With 为当前 CtxLogger 附加字段，并返回新的 CtxLogger（同时更新 Ctx 中的 logger）
 func (cl CtxLogger) With(fields ...zap.Field) CtxLogger {
 	log := cl.Log.With(fields...)
-	ctx := ToContext(cl.ctx, log)
+	ctx := ToContext(cl.Ctx, log)
 	return CtxLogger{
-		ctx: ctx,
+		Ctx: ctx,
 		Log: log,
 	}
 }
