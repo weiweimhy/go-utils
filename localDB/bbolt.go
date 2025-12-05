@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/weiweimhy/go-utils/filesystem"
+	"github.com/weiweimhy/go-utils/v2/filesystem"
 
 	"github.com/bytedance/sonic"
 	"go.etcd.io/bbolt"

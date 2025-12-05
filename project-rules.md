@@ -83,13 +83,13 @@ import "github.com/weiweimhy/go-utils/customUtils"
 import "github.com/weiweimhy/go-utils/strings"
 import "github.com/weiweimhy/go-utils/htmlUtils"
 
-// 新导入
-import "github.com/weiweimhy/go-utils/filesystem"  // 文件系统操作
-import "github.com/weiweimhy/go-utils/httputil"    // HTTP 操作
-import "github.com/weiweimhy/go-utils/htmlutil"    // HTML 处理
-import "github.com/weiweimhy/go-utils/strutil"     // 字符串处理
-import "github.com/weiweimhy/go-utils/crypto"      // 编码/加密
-import "github.com/weiweimhy/go-utils/runtime"     // 运行时工具
+// 新导入（v2）
+import "github.com/weiweimhy/go-utils/v2/filesystem"  // 文件系统操作
+import "github.com/weiweimhy/go-utils/v2/httputil"    // HTTP 操作
+import "github.com/weiweimhy/go-utils/v2/htmlutil"    // HTML 处理
+import "github.com/weiweimhy/go-utils/v2/strutil"     // 字符串处理
+import "github.com/weiweimhy/go-utils/v2/crypto"      // 编码/加密
+import "github.com/weiweimhy/go-utils/v2/runtime"     // 运行时工具
 ```
 
 ### 下载功能变更
@@ -116,7 +116,7 @@ httputil.DownloadBatch(pool, tasks)
 
 ```go
 // ✅ 推荐：使用 logger.L()
-import "github.com/weiweimhy/go-utils/logger"
+import "github.com/weiweimhy/go-utils/v2/logger"
 import "go.uber.org/zap"
 
 logger.L().Info("message", zap.String("key", "value"))

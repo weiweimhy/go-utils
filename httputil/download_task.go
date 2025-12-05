@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/weiweimhy/go-utils/logger"
-	"github.com/weiweimhy/go-utils/task"
+	"github.com/weiweimhy/go-utils/v2/logger"
+	"github.com/weiweimhy/go-utils/v2/task"
 	"go.uber.org/zap"
 )
 

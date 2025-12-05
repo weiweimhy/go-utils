@@ -8,7 +8,7 @@ import (
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 	ocr "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ocr/v20181119"
-	"github.com/weiweimhy/go-utils/logger"
+	"github.com/weiweimhy/go-utils/v2/logger"
 )
 
 type TencentOCRConfig struct {

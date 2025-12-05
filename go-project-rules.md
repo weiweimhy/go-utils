@@ -93,7 +93,7 @@
 - **示例**：
   ```go
   // ✅ 推荐：使用 WorkerPool + Task 模式
-  import "github.com/weiweimhy/go-utils/task"
+  import "github.com/weiweimhy/go-utils/v2/task"
   
   type MyTask struct {
       data string
@@ -493,7 +493,7 @@
 ### 5.0 日志库使用规范
 - **禁止直接使用**标准库 `log` 包
 - **禁止直接使用** `zap.L()`，必须使用 `logger` 封装库的方法
-- **必须使用** `logger` 封装库（`github.com/weiweimhy/go-utils/logger`）
+- **必须使用** `logger` 封装库（`github.com/weiweimhy/go-utils/v2/logger`）
 - **原因**：
   - 统一日志格式和输出
   - 支持结构化日志、日志级别、采样等高级功能
@@ -503,7 +503,7 @@
   ```go
   // ✅ 推荐：使用 logger 封装库
   import (
-      "github.com/weiweimhy/go-utils/logger"
+      "github.com/weiweimhy/go-utils/v2/logger"
       "go.uber.org/zap"
   )
   

@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/weiweimhy/go-utils/filesystem"
-	"github.com/weiweimhy/go-utils/logger"
+	"github.com/weiweimhy/go-utils/v2/filesystem"
+	"github.com/weiweimhy/go-utils/v2/logger"
 	"go.uber.org/zap"
 )
 

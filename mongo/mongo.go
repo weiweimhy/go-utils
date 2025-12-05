@@ -10,7 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.uber.org/zap"
 
-	"github.com/weiweimhy/go-utils/logger"
+	"github.com/weiweimhy/go-utils/v2/logger"
 
 	"sync"
 )
