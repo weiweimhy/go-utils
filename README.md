@@ -245,16 +245,251 @@ EPUB 文件解压、修改和重新打包。
 - `localDB.InitLocalDB` 现在返回 error
 - `customUtils` 包已删除
 
-**迁移指南**：
+## 从 v1.x 升级到 v2.x
+
+### 为什么需要修改导入路径？
+
+根据 [Go 模块版本管理规范](https://go.dev/doc/modules/major-version)，当主版本号 >= 2 时，模块路径必须包含版本后缀 `/v2`。这允许同一项目同时使用不同主版本。
+
+### 升级步骤
+
+#### 1. 更新 go.mod
+
+在你的项目根目录下，运行：
+
+```bash
+go get github.com/weiweimhy/go-utils/v2@latest
+go mod tidy
+```
+
+或者手动编辑 `go.mod`：
+
+```diff
+require (
+-    github.com/weiweimhy/go-utils v1.0.2
++    github.com/weiweimhy/go-utils/v2 v2.0.0
+)
+```
+
+#### 2. 更新所有导入路径
+
+**全局替换导入路径**：
+
+```bash
+# 使用 sed (Linux/Mac)
+find . -name "*.go" -type f -exec sed -i 's|github.com/weiweimhy/go-utils"|github.com/weiweimhy/go-utils/v2"|g' {} +
+
+# 使用 PowerShell (Windows)
+Get-ChildItem -Recurse -Filter "*.go" | ForEach-Object {
+    (Get-Content $_.FullName) -replace 'github.com/weiweimhy/go-utils"', 'github.com/weiweimhy/go-utils/v2"' | Set-Content $_.FullName
+}
+```
+
+**手动更新示例**：
 
 ```go
-// 旧导入（v1.x）
+// ❌ 旧导入（v1.x）
+import (
+    "github.com/weiweimhy/go-utils/customUtils"
+    "github.com/weiweimhy/go-utils/htmlUtils"
+    "github.com/weiweimhy/go-utils/logger"
+)
+
+// ✅ 新导入（v2.x）
+import (
+    "github.com/weiweimhy/go-utils/v2/filesystem"
+    "github.com/weiweimhy/go-utils/v2/htmlutil"
+    "github.com/weiweimhy/go-utils/v2/logger"
+)
+```
+
+#### 3. 处理包名变更
+
+**`customUtils` 包拆分**：
+
+```go
+// ❌ v1.x
 import "github.com/weiweimhy/go-utils/customUtils"
 
-// 新导入（v2.x）
-import "github.com/weiweimhy/go-utils/v2/filesystem"
-import "github.com/weiweimhy/go-utils/v2/httputil"
-// ...
+customUtils.SaveToFile(...)
+customUtils.StringToHash(...)
+
+// ✅ v2.x
+import (
+    "github.com/weiweimhy/go-utils/v2/filesystem"
+    "github.com/weiweimhy/go-utils/v2/crypto"
+)
+
+filesystem.SaveToFile(...)
+crypto.StringToHash(...)
+```
+
+**包名映射表**：
+
+| v1.x 包名 | v2.x 包名 | 说明 |
+|----------|----------|------|
+| `customUtils` | `filesystem` | 文件系统操作 |
+| `customUtils` | `crypto` | 加密/编码 |
+| `customUtils` | `httputil` | HTTP 工具 |
+| `customUtils` | `strutil` | 字符串工具 |
+| `customUtils` | `runtime` | 运行时工具 |
+| `htmlUtils` | `htmlutil` | HTML 处理（全小写） |
+| `strings` | `strutil` | 避免与标准库冲突 |
+
+#### 4. 处理 API 变更
+
+**错误处理改进**：
+
+```go
+// ❌ v1.x - htmlutil 函数不返回 error
+import "github.com/weiweimhy/go-utils/htmlUtils"
+
+texts := htmlUtils.ExtractTextByTagDOM(html, "p")
+// 如果解析失败，texts 可能为 nil 或空
+
+// ✅ v2.x - 现在返回 error
+import "github.com/weiweimhy/go-utils/v2/htmlutil"
+
+texts, err := htmlutil.ExtractTextByTagDOM(html, "p")
+if err != nil {
+    // 处理错误
+    log.Printf("failed to extract text: %v", err)
+    return
+}
+```
+
+**localDB 初始化**：
+
+```go
+// ❌ v1.x
+import "github.com/weiweimhy/go-utils/localDB"
+
+db := localDB.InitLocalDB("./data.db")
+// 如果失败会 fatal，无法处理
+
+// ✅ v2.x
+import "github.com/weiweimhy/go-utils/v2/localDB"
+
+db, err := localDB.InitLocalDB("./data.db")
+if err != nil {
+    log.Fatalf("failed to init local DB: %v", err)
+}
+defer db.Close()
+```
+
+**完整的迁移示例**：
+
+```go
+// v1.x 代码
+package main
+
+import (
+    "github.com/weiweimhy/go-utils/customUtils"
+    "github.com/weiweimhy/go-utils/htmlUtils"
+    "github.com/weiweimhy/go-utils/localDB"
+)
+
+func main() {
+    // 文件操作
+    customUtils.SaveToFile("./data.txt", []byte("hello"))
+    
+    // HTML 提取
+    texts := htmlUtils.ExtractTextByTagDOM(html, "p")
+    
+    // 数据库初始化
+    db := localDB.InitLocalDB("./data.db")
+    defer db.Close()
+}
+
+// v2.x 代码
+package main
+
+import (
+    "log"
+    "github.com/weiweimhy/go-utils/v2/filesystem"
+    "github.com/weiweimhy/go-utils/v2/htmlutil"
+    "github.com/weiweimhy/go-utils/v2/localDB"
+)
+
+func main() {
+    // 文件操作（现在返回 error）
+    err := filesystem.SaveToFile("./data.txt", []byte("hello"))
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // HTML 提取（现在返回 error）
+    texts, err := htmlutil.ExtractTextByTagDOM(html, "p")
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // 数据库初始化（现在返回 error）
+    db, err := localDB.InitLocalDB("./data.db")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+}
+```
+
+#### 5. 验证升级
+
+```bash
+# 清理并更新依赖
+go mod tidy
+
+# 编译项目
+go build ./...
+
+# 运行测试
+go test ./...
+```
+
+### 常见问题
+
+**Q: 升级后编译错误 "package not found"**
+
+A: 确保所有导入路径都已更新为 `/v2` 后缀，并运行 `go mod tidy`。
+
+**Q: 可以同时使用 v1 和 v2 吗？**
+
+A: 可以。Go 模块允许同时导入不同主版本：
+
+```go
+import (
+    v1 "github.com/weiweimhy/go-utils"
+    v2 "github.com/weiweimhy/go-utils/v2"
+)
+```
+
+**Q: 如何回退到 v1.x？**
+
+A: 修改 `go.mod` 并运行 `go mod tidy`：
+
+```go
+require github.com/weiweimhy/go-utils v1.0.2
+```
+
+### 自动化升级脚本
+
+可以使用以下脚本自动升级（需要根据实际情况调整）：
+
+```bash
+#!/bin/bash
+# upgrade-to-v2.sh
+
+# 1. 更新 go.mod
+go get github.com/weiweimhy/go-utils/v2@latest
+
+# 2. 替换导入路径
+find . -name "*.go" -type f -exec sed -i 's|github.com/weiweimhy/go-utils"|github.com/weiweimhy/go-utils/v2"|g' {} +
+
+# 3. 更新依赖
+go mod tidy
+
+# 4. 编译验证
+go build ./...
 ```
 
 ## 项目规范
