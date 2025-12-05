@@ -1,23 +1,21 @@
-package htmlUtils
+package htmlutil
 
 import (
+	"fmt"
 	"strings"
 
 	"golang.org/x/net/html"
 )
 
 // ExtractTextByTagDOM 使用 DOM 解析器提取指定标签的文字内容
-// htmlContent: HTML 内容
-// tagName: 标签名称（不包含尖括号，如 "p", "h1", "div"）
-// 返回所有匹配标签的文字内容列表
-func ExtractTextByTagDOM(htmlContent, tagName string) []string {
+func ExtractTextByTagDOM(htmlContent, tagName string) ([]string, error) {
 	if htmlContent == "" || tagName == "" {
-		return nil
+		return nil, nil
 	}
 
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to parse HTML: %w", err)
 	}
 
 	var results []string
@@ -35,30 +33,24 @@ func ExtractTextByTagDOM(htmlContent, tagName string) []string {
 	}
 	traverse(doc)
 
-	return results
+	return results, nil
 }
 
 // ExtractTextByTagWithAttrDOM 使用 DOM 解析器提取指定标签且包含特定属性的文字内容
-// htmlContent: HTML 内容
-// tagName: 标签名称
-// attrName: 属性名称
-// attrValue: 属性值（可选，如果为空则只检查属性是否存在）
-// 返回所有匹配标签的文字内容列表
-func ExtractTextByTagWithAttrDOM(htmlContent, tagName, attrName, attrValue string) []string {
+func ExtractTextByTagWithAttrDOM(htmlContent, tagName, attrName, attrValue string) ([]string, error) {
 	if htmlContent == "" || tagName == "" || attrName == "" {
-		return nil
+		return nil, nil
 	}
 
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to parse HTML: %w", err)
 	}
 
 	var results []string
 	var traverse func(*html.Node)
 	traverse = func(n *html.Node) {
 		if n.Type == html.ElementNode && strings.EqualFold(n.Data, tagName) {
-			// 检查属性
 			attrValueFound := ""
 			for _, attr := range n.Attr {
 				if strings.EqualFold(attr.Key, attrName) {
@@ -68,7 +60,6 @@ func ExtractTextByTagWithAttrDOM(htmlContent, tagName, attrName, attrValue strin
 			}
 
 			if attrValueFound != "" {
-				// 如果指定了属性值，检查是否匹配
 				if attrValue == "" || attrValueFound == attrValue {
 					text := extractTextFromNode(n)
 					if text != "" {
@@ -83,28 +74,24 @@ func ExtractTextByTagWithAttrDOM(htmlContent, tagName, attrName, attrValue strin
 	}
 	traverse(doc)
 
-	return results
+	return results, nil
 }
 
 // ExtractTextByClassDOM 使用 DOM 解析器提取指定 class 的标签文字内容
-// htmlContent: HTML 内容
-// className: CSS class 名称
-// 返回所有匹配标签的文字内容列表
-func ExtractTextByClassDOM(htmlContent, className string) []string {
+func ExtractTextByClassDOM(htmlContent, className string) ([]string, error) {
 	if htmlContent == "" || className == "" {
-		return nil
+		return nil, nil
 	}
 
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to parse HTML: %w", err)
 	}
 
 	var results []string
 	var traverse func(*html.Node)
 	traverse = func(n *html.Node) {
 		if n.Type == html.ElementNode {
-			// 检查 class 属性
 			for _, attr := range n.Attr {
 				if strings.EqualFold(attr.Key, "class") {
 					classes := strings.Fields(attr.Val)
@@ -127,28 +114,24 @@ func ExtractTextByClassDOM(htmlContent, className string) []string {
 	}
 	traverse(doc)
 
-	return results
+	return results, nil
 }
 
 // ExtractTextByIDDOM 使用 DOM 解析器提取指定 id 的标签文字内容
-// htmlContent: HTML 内容
-// id: 元素 ID
-// 返回匹配标签的文字内容（如果找到），否则返回空字符串
-func ExtractTextByIDDOM(htmlContent, id string) string {
+func ExtractTextByIDDOM(htmlContent, id string) (string, error) {
 	if htmlContent == "" || id == "" {
-		return ""
+		return "", nil
 	}
 
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("failed to parse HTML: %w", err)
 	}
 
 	var result string
 	var traverse func(*html.Node)
 	traverse = func(n *html.Node) {
 		if n.Type == html.ElementNode {
-			// 检查 id 属性
 			for _, attr := range n.Attr {
 				if strings.EqualFold(attr.Key, "id") && attr.Val == id {
 					result = extractTextFromNode(n)
@@ -165,20 +148,18 @@ func ExtractTextByIDDOM(htmlContent, id string) string {
 	}
 	traverse(doc)
 
-	return result
+	return result, nil
 }
 
 // ExtractAllTextDOM 使用 DOM 解析器提取 HTML 中所有文字内容
-// htmlContent: HTML 内容
-// 返回纯文本内容
-func ExtractAllTextDOM(htmlContent string) string {
+func ExtractAllTextDOM(htmlContent string) (string, error) {
 	if htmlContent == "" {
-		return ""
+		return "", nil
 	}
 
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("failed to parse HTML: %w", err)
 	}
 
 	var result strings.Builder
@@ -199,7 +180,7 @@ func ExtractAllTextDOM(htmlContent string) string {
 	}
 	traverse(doc)
 
-	return result.String()
+	return result.String(), nil
 }
 
 // extractTextFromNode 从节点及其子节点中提取所有文字内容

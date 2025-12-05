@@ -21,16 +21,16 @@ type WeChatSession struct {
 const JSCODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code"
 
 func GetSession(appid, secret, js_code string) (WeChatSession, error) {
-	defer logger.Trace(zap.L(), "wechat.GetSession")()
+	defer logger.Trace(logger.L(), "wechat.GetSession")()
 
 	if appid == "" {
-		return WeChatSession{}, logger.InvalidParam(zap.L(), "appid is required", zap.String("param", "appid"))
+		return WeChatSession{}, logger.InvalidParam(logger.L(), "appid is required", zap.String("param", "appid"))
 	}
 	if secret == "" {
-		return WeChatSession{}, logger.InvalidParam(zap.L(), "secret is required", zap.String("param", "secret"))
+		return WeChatSession{}, logger.InvalidParam(logger.L(), "secret is required", zap.String("param", "secret"))
 	}
 	if js_code == "" {
-		return WeChatSession{}, logger.InvalidParam(zap.L(), "js_code is required", zap.String("param", "js_code"))
+		return WeChatSession{}, logger.InvalidParam(logger.L(), "js_code is required", zap.String("param", "js_code"))
 	}
 
 	url := fmt.Sprintf(JSCODE2SESSION_URL, appid, secret, js_code)
@@ -43,7 +43,7 @@ func GetSession(appid, secret, js_code string) (WeChatSession, error) {
 		defer func(Body io.ReadCloser) {
 			err := Body.Close()
 			if err != nil {
-				zap.L().Warn("failed to close response body",
+				logger.L().Warn("failed to close response body",
 					zap.String("func", "wechat.GetSession"),
 					zap.Error(err),
 				)

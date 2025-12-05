@@ -1,4 +1,4 @@
-package tencentOCR
+package OCR
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 	ocr "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ocr/v20181119"
-	"go.uber.org/zap"
+	"github.com/weiweimhy/go-utils/logger"
 )
 
 type TencentOCRConfig struct {
@@ -44,7 +44,7 @@ func Init(config *TencentOCRConfig) *TencentOCR {
 
 func GetInstance() *TencentOCR {
 	if instance == nil {
-		zap.L().Fatal("tencent OCR instance not initialized, you should call Init first")
+		logger.L().Fatal("tencent OCR instance not initialized, you should call Init first")
 		os.Exit(1)
 	}
 

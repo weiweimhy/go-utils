@@ -36,7 +36,7 @@ var (
 )
 
 func GetMongoDB(config Config) *DB {
-	defer logger.Trace(zap.L(), "mongo.GetMongoDB")()
+	defer logger.Trace(logger.L(), "mongo.GetMongoDB")()
 
 	once.Do(func() {
 		opts := options.Client()
@@ -54,7 +54,7 @@ func GetMongoDB(config Config) *DB {
 
 		client, err := mongo.Connect(opts)
 		if err != nil {
-			zap.L().Fatal("failed to connect to MongoDB",
+			logger.L().Fatal("failed to connect to MongoDB",
 				zap.String("uri", config.Uri),
 				zap.Error(err),
 			)
@@ -66,7 +66,7 @@ func GetMongoDB(config Config) *DB {
 
 		err = client.Ping(ctx, nil)
 		if err != nil {
-			zap.L().Fatal("failed to ping MongoDB",
+			logger.L().Fatal("failed to ping MongoDB",
 				zap.String("uri", config.Uri),
 				zap.Error(err),
 			)
@@ -83,10 +83,10 @@ func GetMongoDB(config Config) *DB {
 }
 
 func InsertOne[T any](db *DB, collectionName string, document T) (*mongo.InsertOneResult, error) {
-	defer logger.Trace(zap.L(), "mongo.InsertOne", zap.String("collection", collectionName))()
+	defer logger.Trace(logger.L(), "mongo.InsertOne", zap.String("collection", collectionName))()
 
 	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
+		return nil, logger.InvalidParam(logger.L(), "database is nil", zap.String("param", "db"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
@@ -101,14 +101,14 @@ func InsertOne[T any](db *DB, collectionName string, document T) (*mongo.InsertO
 }
 
 func InsertMany[T any](db *DB, collectionName string, documents []T) (*mongo.InsertManyResult, error) {
-	defer logger.Trace(zap.L(), "mongo.InsertMany", zap.String("collection", collectionName), zap.Int("count", len(documents)))()
+	defer logger.Trace(logger.L(), "mongo.InsertMany", zap.String("collection", collectionName), zap.Int("count", len(documents)))()
 
 	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
+		return nil, logger.InvalidParam(logger.L(), "database is nil", zap.String("param", "db"))
 	}
 
 	if len(documents) == 0 {
-		return nil, logger.InvalidParam(zap.L(), "documents is empty", zap.String("param", "documents"))
+		return nil, logger.InvalidParam(logger.L(), "documents is empty", zap.String("param", "documents"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
@@ -128,10 +128,10 @@ func InsertMany[T any](db *DB, collectionName string, documents []T) (*mongo.Ins
 }
 
 func DeleteOne(db *DB, collectionName string, filter interface{}) (*mongo.DeleteResult, error) {
-	defer logger.Trace(zap.L(), "mongo.DeleteOne", zap.String("collection", collectionName))()
+	defer logger.Trace(logger.L(), "mongo.DeleteOne", zap.String("collection", collectionName))()
 
 	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
+		return nil, logger.InvalidParam(logger.L(), "database is nil", zap.String("param", "db"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
@@ -146,10 +146,10 @@ func DeleteOne(db *DB, collectionName string, filter interface{}) (*mongo.Delete
 }
 
 func DeleteMany(db *DB, collectionName string, filter interface{}) (*mongo.DeleteResult, error) {
-	defer logger.Trace(zap.L(), "mongo.DeleteMany", zap.String("collection", collectionName))()
+	defer logger.Trace(logger.L(), "mongo.DeleteMany", zap.String("collection", collectionName))()
 
 	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
+		return nil, logger.InvalidParam(logger.L(), "database is nil", zap.String("param", "db"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
@@ -164,10 +164,10 @@ func DeleteMany(db *DB, collectionName string, filter interface{}) (*mongo.Delet
 }
 
 func UpdateOne[T any](db *DB, collectionName string, filter interface{}, update T) (*mongo.UpdateResult, error) {
-	defer logger.Trace(zap.L(), "mongo.UpdateOne", zap.String("collection", collectionName))()
+	defer logger.Trace(logger.L(), "mongo.UpdateOne", zap.String("collection", collectionName))()
 
 	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
+		return nil, logger.InvalidParam(logger.L(), "database is nil", zap.String("param", "db"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
@@ -182,10 +182,10 @@ func UpdateOne[T any](db *DB, collectionName string, filter interface{}, update 
 }
 
 func UpdateMany[T any](db *DB, collectionName string, filter interface{}, updates []T) (*mongo.UpdateResult, error) {
-	defer logger.Trace(zap.L(), "mongo.UpdateMany", zap.String("collection", collectionName), zap.Int("count", len(updates)))()
+	defer logger.Trace(logger.L(), "mongo.UpdateMany", zap.String("collection", collectionName), zap.Int("count", len(updates)))()
 
 	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
+		return nil, logger.InvalidParam(logger.L(), "database is nil", zap.String("param", "db"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
@@ -205,10 +205,10 @@ func UpdateMany[T any](db *DB, collectionName string, filter interface{}, update
 }
 
 func ReplaceOne[T any](db *DB, collectionName string, filter interface{}, update T) (*mongo.UpdateResult, error) {
-	defer logger.Trace(zap.L(), "mongo.ReplaceOne", zap.String("collection", collectionName))()
+	defer logger.Trace(logger.L(), "mongo.ReplaceOne", zap.String("collection", collectionName))()
 
 	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
+		return nil, logger.InvalidParam(logger.L(), "database is nil", zap.String("param", "db"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
@@ -223,10 +223,10 @@ func ReplaceOne[T any](db *DB, collectionName string, filter interface{}, update
 }
 
 func FindOne[T any](db *DB, collectionName string, filter interface{}) (*T, error) {
-	defer logger.Trace(zap.L(), "mongo.FindOne", zap.String("collection", collectionName))()
+	defer logger.Trace(logger.L(), "mongo.FindOne", zap.String("collection", collectionName))()
 
 	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
+		return nil, logger.InvalidParam(logger.L(), "database is nil", zap.String("param", "db"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
@@ -245,10 +245,10 @@ func FindOne[T any](db *DB, collectionName string, filter interface{}) (*T, erro
 }
 
 func FindMany[T any](db *DB, collectionName string, filter interface{}) ([]*T, error) {
-	defer logger.Trace(zap.L(), "mongo.FindMany", zap.String("collection", collectionName))()
+	defer logger.Trace(logger.L(), "mongo.FindMany", zap.String("collection", collectionName))()
 
 	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
+		return nil, logger.InvalidParam(logger.L(), "database is nil", zap.String("param", "db"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
@@ -262,7 +262,7 @@ func FindMany[T any](db *DB, collectionName string, filter interface{}) ([]*T, e
 	defer func(cur *mongo.Cursor, ctx context.Context) {
 		err := cur.Close(ctx)
 		if err != nil {
-			zap.L().Warn("failed to close cursor",
+			logger.L().Warn("failed to close cursor",
 				zap.String("collection", collectionName),
 				zap.Error(err),
 			)
@@ -287,10 +287,10 @@ func FindMany[T any](db *DB, collectionName string, filter interface{}) ([]*T, e
 }
 
 func Count(db *DB, collectionName string, filter interface{}) (int64, error) {
-	defer logger.Trace(zap.L(), "mongo.Count", zap.String("collection", collectionName))()
+	defer logger.Trace(logger.L(), "mongo.Count", zap.String("collection", collectionName))()
 
 	if db == nil {
-		return 0, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
+		return 0, logger.InvalidParam(logger.L(), "database is nil", zap.String("param", "db"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)

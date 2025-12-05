@@ -1,4 +1,4 @@
-package htmlUtils
+package htmlutil
 
 import (
 	"regexp"
@@ -15,7 +15,6 @@ func ExtractTextByTag(htmlContent, tagName string) []string {
 	}
 
 	var results []string
-	// 匹配开始标签和结束标签之间的内容
 	pattern := `<` + regexp.QuoteMeta(tagName) + `[^>]*>(.*?)</` + regexp.QuoteMeta(tagName) + `>`
 	re := regexp.MustCompile(`(?i)` + pattern) // 不区分大小写
 
@@ -48,10 +47,8 @@ func ExtractTextByTagWithAttr(htmlContent, tagName, attrName, attrValue string) 
 	var pattern string
 
 	if attrValue == "" {
-		// 只检查属性是否存在
 		pattern = `<` + regexp.QuoteMeta(tagName) + `[^>]*` + regexp.QuoteMeta(attrName) + `\s*=\s*["'][^"']*["'][^>]*>(.*?)</` + regexp.QuoteMeta(tagName) + `>`
 	} else {
-		// 检查属性值是否匹配
 		pattern = `<` + regexp.QuoteMeta(tagName) + `[^>]*` + regexp.QuoteMeta(attrName) + `\s*=\s*["']` + regexp.QuoteMeta(attrValue) + `["'][^>]*>(.*?)</` + regexp.QuoteMeta(tagName) + `>`
 	}
 
@@ -81,7 +78,6 @@ func ExtractTextByClass(htmlContent, className string) []string {
 	}
 
 	var results []string
-	// 匹配包含指定 class 的标签
 	pattern := `<[^>]+class\s*=\s*["'][^"']*\b` + regexp.QuoteMeta(className) + `\b[^"']*["'][^>]*>(.*?)</[^>]+>`
 	re := regexp.MustCompile(`(?i)` + pattern)
 
@@ -108,7 +104,6 @@ func ExtractTextByID(htmlContent, id string) string {
 		return ""
 	}
 
-	// 匹配包含指定 id 的标签
 	pattern := `<[^>]+id\s*=\s*["']` + regexp.QuoteMeta(id) + `["'][^>]*>(.*?)</[^>]+>`
 	re := regexp.MustCompile(`(?i)` + pattern)
 
@@ -130,11 +125,9 @@ func ExtractAllText(htmlContent string) string {
 
 // stripHTMLTags 去除 HTML 标签，只保留文字内容
 func stripHTMLTags(html string) string {
-	// 移除所有 HTML 标签
 	re := regexp.MustCompile(`<[^>]+>`)
 	text := re.ReplaceAllString(html, " ")
 
-	// 解码 HTML 实体（简单处理）
 	text = strings.ReplaceAll(text, "&nbsp;", " ")
 	text = strings.ReplaceAll(text, "&amp;", "&")
 	text = strings.ReplaceAll(text, "&lt;", "<")
@@ -142,7 +135,6 @@ func stripHTMLTags(html string) string {
 	text = strings.ReplaceAll(text, "&quot;", "\"")
 	text = strings.ReplaceAll(text, "&#39;", "'")
 
-	// 压缩多个空格为单个空格
 	re = regexp.MustCompile(`\s+`)
 	text = re.ReplaceAllString(text, " ")
 

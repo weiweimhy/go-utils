@@ -1,17 +1,16 @@
 package localDB
 
 import (
+	"fmt"
+	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
-	"github.com/weiweimhy/go-utils/customUtils"
-	"path/filepath"
-	"sync"
+	"github.com/weiweimhy/go-utils/filesystem"
 
 	"github.com/bytedance/sonic"
 	"go.etcd.io/bbolt"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type LocalDB struct {
@@ -28,17 +27,12 @@ func DB() *LocalDB {
 	return db
 }
 
-func InitLocalDB(path string, name string) {
+func InitLocalDB(path string, name string) error {
+	var initErr error
 	once.Do(func() {
-		err := customUtils.CreateDir(path)
-
+		err := filesystem.CreateDir(path)
 		if err != nil {
-			zap.L().Log(
-				zapcore.ErrorLevel,
-				"create local db dir error",
-				zap.Error(err),
-				zap.String("path", path),
-			)
+			initErr = fmt.Errorf("failed to create local db directory: %w", err)
 			return
 		}
 
@@ -50,17 +44,13 @@ func InitLocalDB(path string, name string) {
 
 		boltDB, err := bbolt.Open(path, 0664, &options)
 		if err != nil {
-			zap.L().Log(
-				zapcore.ErrorLevel,
-				"open local db dir error",
-				zap.Error(err),
-				zap.String("path", path),
-			)
+			initErr = fmt.Errorf("failed to open local db: %w", err)
 			return
 		}
 
 		db = &LocalDB{boltDB}
 	})
+	return initErr
 }
 
 func (db *LocalDB) Set(bucket, key string, value []byte) error {

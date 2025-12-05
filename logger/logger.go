@@ -19,6 +19,10 @@ var (
 	ctxKey = struct{}{}
 )
 
+func L() *zap.Logger {
+	return zap.L()
+}
+
 func InitProduction() {
 	once.Do(func() {
 		writeSyncer := zapcore.AddSync(&lumberjack.Logger{
@@ -54,10 +58,10 @@ func InitProduction() {
 			core,
 			zap.AddCaller(),
 			zap.AddStacktrace(zap.ErrorLevel),
-			// 可选：高并发防刷屏采样
-			// zap.WrapCore(func(c zapcore.Core) zapcore.Core {
-			// 	return zapcore.NewSamplerWithOptions(c, time.Second, 100, 100)
-			// }),
+			// 生产环境必须开启 Sampling，防止高并发场景下日志刷屏
+			zap.WrapCore(func(c zapcore.Core) zapcore.Core {
+				return zapcore.NewSamplerWithOptions(c, time.Second, 100, 100)
+			}),
 		)
 
 		zap.ReplaceGlobals(logger)

@@ -1,10 +1,11 @@
-package customUtils
+package httputil
 
 import (
 	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/weiweimhy/go-utils/logger"
 	"go.uber.org/zap"
 )
 
@@ -17,7 +18,7 @@ func GetBytesFromUrl(url string) ([]byte, error) {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			zap.L().Warn("failed to close http response body",
+			logger.L().Warn("failed to close http response body",
 				zap.String("url", url),
 				zap.Error(err))
 		}
