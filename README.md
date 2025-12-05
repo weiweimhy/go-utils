@@ -258,13 +258,17 @@ EPUB 文件解压、修改和重新打包。
 在你的项目根目录下，运行：
 
 ```bash
-# 方法一：直接指定版本（推荐）
+# 方法一：使用 GOPROXY=direct 直接从 GitHub 获取（推荐，避免代理缓存问题）
+GOPROXY=direct go get github.com/weiweimhy/go-utils/v2@v2.0.0
+go mod tidy
+
+# 方法二：直接指定版本（如果代理正常）
 go get github.com/weiweimhy/go-utils/v2@v2.0.0
 go mod tidy
 
-# 方法二：如果遇到缓存问题，先清理缓存
+# 方法三：如果遇到缓存问题，先清理缓存
 go clean -modcache
-go get github.com/weiweimhy/go-utils/v2@v2.0.0
+GOPROXY=direct go get github.com/weiweimhy/go-utils/v2@v2.0.0
 go mod tidy
 ```
 
@@ -277,7 +281,10 @@ require (
 )
 ```
 
-**注意**：如果使用 `@latest` 遇到问题，请使用 `@v2.0.0` 明确指定版本号。
+**重要提示**：
+- 如果使用 `@latest` 遇到 "does not contain package" 错误，这是 Go 模块代理缓存问题
+- **推荐使用 `GOPROXY=direct`** 直接从 GitHub 获取，避免代理延迟
+- Windows PowerShell 用户需要使用：`$env:GOPROXY="direct"; go get github.com/weiweimhy/go-utils/v2@v2.0.0`
 
 #### 2. 更新所有导入路径
 
@@ -493,12 +500,20 @@ require github.com/weiweimhy/go-utils v1.0.2
 
 **Q: Go 模块代理更新延迟**
 
-A: Go 模块代理（如 proxy.golang.org）可能需要几分钟到几小时才能同步最新 tag。如果遇到问题：
-- 等待一段时间后重试
-- 使用 `GOPROXY=direct` 直接从 GitHub 获取：
+A: Go 模块代理（如 proxy.golang.org）可能需要几分钟到几小时才能同步最新 tag。**推荐解决方案**：
+- **使用 `GOPROXY=direct`** 直接从 GitHub 获取（最快最可靠）：
   ```bash
+  # Linux/Mac
   GOPROXY=direct go get github.com/weiweimhy/go-utils/v2@v2.0.0
+  
+  # Windows PowerShell
+  $env:GOPROXY="direct"
+  go get github.com/weiweimhy/go-utils/v2@v2.0.0
+  
+  # Windows CMD
+  set GOPROXY=direct && go get github.com/weiweimhy/go-utils/v2@v2.0.0
   ```
+- 或者等待一段时间后重试（不推荐，可能等待较长时间）
 
 ### 自动化升级脚本
 
@@ -508,8 +523,8 @@ A: Go 模块代理（如 proxy.golang.org）可能需要几分钟到几小时才
 #!/bin/bash
 # upgrade-to-v2.sh
 
-# 1. 更新 go.mod（使用明确版本号）
-go get github.com/weiweimhy/go-utils/v2@v2.0.0
+# 1. 更新 go.mod（使用 GOPROXY=direct 避免代理问题）
+GOPROXY=direct go get github.com/weiweimhy/go-utils/v2@v2.0.0
 
 # 2. 替换导入路径
 find . -name "*.go" -type f -exec sed -i 's|github.com/weiweimhy/go-utils"|github.com/weiweimhy/go-utils/v2"|g' {} +
