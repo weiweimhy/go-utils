@@ -258,7 +258,13 @@ EPUB 文件解压、修改和重新打包。
 在你的项目根目录下，运行：
 
 ```bash
-go get github.com/weiweimhy/go-utils/v2@latest
+# 方法一：直接指定版本（推荐）
+go get github.com/weiweimhy/go-utils/v2@v2.0.0
+go mod tidy
+
+# 方法二：如果遇到缓存问题，先清理缓存
+go clean -modcache
+go get github.com/weiweimhy/go-utils/v2@v2.0.0
 go mod tidy
 ```
 
@@ -270,6 +276,8 @@ require (
 +    github.com/weiweimhy/go-utils/v2 v2.0.0
 )
 ```
+
+**注意**：如果使用 `@latest` 遇到问题，请使用 `@v2.0.0` 明确指定版本号。
 
 #### 2. 更新所有导入路径
 
