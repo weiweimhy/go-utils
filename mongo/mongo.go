@@ -10,7 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.uber.org/zap"
 
-	"invoiceClient/pkg/logger"
+	"github.com/weiweimhy/go-utils/logger"
 
 	"sync"
 )

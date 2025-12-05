@@ -2,13 +2,12 @@ package wechat
 
 import (
 	"fmt"
+	"github.com/weiweimhy/go-utils/logger"
 	"io"
 	"net/http"
 
 	"github.com/bytedance/sonic"
 	"go.uber.org/zap"
-
-	"invoiceClient/pkg/logger"
 )
 
 type WeChatSession struct {
