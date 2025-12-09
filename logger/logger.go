@@ -23,6 +23,39 @@ func L() *zap.Logger {
 	return zap.L()
 }
 
+func InitDevelopment() {
+	once.Do(func() {
+		encoderConfig := zapcore.EncoderConfig{
+			TimeKey:        "ts",
+			LevelKey:       "level",
+			NameKey:        "logger",
+			CallerKey:      "caller",
+			MessageKey:     "msg",
+			StacktraceKey:  "stacktrace",
+			LineEnding:     zapcore.DefaultLineEnding,
+			EncodeLevel:    zapcore.CapitalColorLevelEncoder,
+			EncodeTime:     zapcore.TimeEncoderOfLayout("15:04:05.000"),
+			EncodeDuration: zapcore.StringDurationEncoder,
+			EncodeCaller:   zapcore.ShortCallerEncoder,
+		}
+
+		core := zapcore.NewCore(
+			zapcore.NewConsoleEncoder(encoderConfig),
+			zapcore.AddSync(os.Stdout),
+			zap.NewAtomicLevelAt(zap.DebugLevel),
+		)
+
+		logger := zap.New(
+			core,
+			zap.AddCaller(),
+			zap.AddStacktrace(zap.ErrorLevel),
+			zap.Development(),
+		)
+
+		zap.ReplaceGlobals(logger)
+	})
+}
+
 func InitProduction() {
 	once.Do(func() {
 		writeSyncer := zapcore.AddSync(&lumberjack.Logger{

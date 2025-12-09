@@ -10,4 +10,3 @@ func GetVersion() string {
 	}
 	return ""
 }
-

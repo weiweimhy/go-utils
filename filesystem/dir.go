@@ -13,12 +13,9 @@ func IsDirExist(path string) bool {
 	return info.IsDir()
 }
 
-func CreateDir(path string) error {
+// CreateParentDir 为给定文件路径创建父目录
+func CreateParentDir(path string) error {
 	dir := filepath.Dir(path)
-
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return err
-	}
-	return nil
+	return os.MkdirAll(dir, os.ModePerm)
 }
 

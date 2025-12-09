@@ -48,7 +48,7 @@ func DownloadFileWithClient(client *http.Client, url string, path string) error 
 		return fmt.Errorf("download failed, status code: %d", resp.StatusCode)
 	}
 
-	err = filesystem.CreateDir(path)
+	err = filesystem.CreateParentDir(path)
 	if err != nil {
 		return err
 	}

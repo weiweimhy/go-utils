@@ -17,7 +17,7 @@ func IsFileExist(path string) bool {
 }
 
 func SaveToFile(path string, data []byte) error {
-	err := CreateDir(path)
+	err := CreateParentDir(path)
 	if err != nil {
 		return err
 	}

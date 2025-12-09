@@ -30,7 +30,7 @@ func DB() *LocalDB {
 func InitLocalDB(path string, name string) error {
 	var initErr error
 	once.Do(func() {
-		err := filesystem.CreateDir(path)
+		err := filesystem.CreateParentDir(path)
 		if err != nil {
 			initErr = fmt.Errorf("failed to create local db directory: %w", err)
 			return
