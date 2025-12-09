@@ -2,11 +2,12 @@ package wechat
 
 import (
 	"fmt"
-	"github.com/weiweimhy/go-utils/v2/logger"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/bytedance/sonic"
+	"github.com/weiweimhy/go-utils/v2/logger"
 	"go.uber.org/zap"
 )
 
@@ -18,7 +19,11 @@ type WeChatSession struct {
 	ErrMsg     string `json:"errmsg"`
 }
 
-const JSCODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code"
+const jscode2sessionURL = "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code"
+
+var defaultWechatClient = &http.Client{
+	Timeout: 30 * time.Second,
+}
 
 func GetSession(appid, secret, js_code string) (WeChatSession, error) {
 	defer logger.Trace(logger.L(), "wechat.GetSession")()
@@ -33,8 +38,8 @@ func GetSession(appid, secret, js_code string) (WeChatSession, error) {
 		return WeChatSession{}, logger.InvalidParam(logger.L(), "js_code is required", zap.String("param", "js_code"))
 	}
 
-	url := fmt.Sprintf(JSCODE2SESSION_URL, appid, secret, js_code)
-	rsp, err := http.Get(url)
+	url := fmt.Sprintf(jscode2sessionURL, appid, secret, js_code)
+	rsp, err := defaultWechatClient.Get(url)
 	if err != nil {
 		return WeChatSession{}, fmt.Errorf("failed to request wechat api: %w", err)
 	}

@@ -33,7 +33,7 @@ func GetFileBase64(path string) (string, error) {
 	return crypto.GetBase64FromBytes(data), nil
 }
 
-func GetStringFormFile(path string) (string, error) {
+func GetStringFromFile(path string) (string, error) {
 	data, err := os.ReadFile(path)
 
 	if err != nil {

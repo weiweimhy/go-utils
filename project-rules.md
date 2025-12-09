@@ -62,14 +62,19 @@
 ```
 go-utils/
 ├── crypto/          # 编码/加密工具
+├── epub/            # EPUB 处理工具
 ├── filesystem/      # 文件系统操作
-├── httputil/        # HTTP/网络工具（全小写）
 ├── htmlutil/        # HTML 处理工具（全小写）
-├── strutil/         # 字符串处理工具（避免与标准库冲突）
-├── runtime/         # 运行时工具
+├── httputil/        # HTTP/网络工具（全小写）
 ├── localDB/         # 本地数据库
 ├── logger/          # 日志工具
+├── mongo/           # MongoDB 操作
+├── ocr/             # OCR 服务（全小写）
+├── runtime/         # 运行时工具
+├── strutil/         # 字符串处理工具（避免与标准库冲突）
 ├── task/            # 任务池（WorkerPool + Task）
+├── urlutil/         # URL 处理工具
+├── wechat/          # 微信 API
 └── ...              # 其他包
 ```
 

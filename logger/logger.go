@@ -70,12 +70,12 @@ func InitProduction() {
 
 func FromContext(ctx context.Context, fields ...zap.Field) *zap.Logger {
 	if ctx == nil {
-		return zap.L().With(fields...)
+		return L().With(fields...)
 	}
 	if l, ok := ctx.Value(ctxKey).(*zap.Logger); ok && l != nil {
 		return l.With(fields...)
 	}
-	return zap.L().With(fields...)
+	return L().With(fields...)
 }
 
 func ToContext(ctx context.Context, l *zap.Logger) context.Context {

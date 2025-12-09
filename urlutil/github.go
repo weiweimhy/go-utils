@@ -15,4 +15,3 @@ func GetGitHubRawUrl(browseUrl string) (string, error) {
 	}
 	return fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/", matches[1], matches[2], matches[3]), nil
 }
-

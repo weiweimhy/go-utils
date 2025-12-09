@@ -1,13 +1,13 @@
 package runtime
 
 import (
-	"fmt"
 	"runtime/debug"
 )
 
-func GetVersion() {
+func GetVersion() string {
 	if info, ok := debug.ReadBuildInfo(); ok {
-		fmt.Println(info.Main.Version)
+		return info.Main.Version
 	}
+	return ""
 }
 

@@ -1,14 +1,12 @@
-package OCR
+package ocr
 
 import (
-	"os"
-
+	"fmt"
 	"sync"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
-	ocr "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ocr/v20181119"
-	"github.com/weiweimhy/go-utils/v2/logger"
+	tencentocr "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ocr/v20181119"
 )
 
 type TencentOCRConfig struct {
@@ -17,58 +15,56 @@ type TencentOCRConfig struct {
 }
 
 type TencentOCR struct {
-	*ocr.Client
+	*tencentocr.Client
 }
 
 var (
 	instance *TencentOCR
-	url      = "ocr.tencentcloudapi.com"
+	initErr  error
+	endpoint = "ocr.tencentcloudapi.com"
 	once     sync.Once
 )
 
-func Init(config *TencentOCRConfig) *TencentOCR {
+func Init(config *TencentOCRConfig) (*TencentOCR, error) {
 	once.Do(func() {
 		credential := common.NewCredential(
 			config.SecretId,
 			config.SecretKey,
 		)
 		cpf := profile.NewClientProfile()
-		cpf.HttpProfile.Endpoint = url
-		client, _ := ocr.NewClient(credential, "", cpf)
+		cpf.HttpProfile.Endpoint = endpoint
+
+		client, err := tencentocr.NewClient(credential, "", cpf)
+		if err != nil {
+			initErr = fmt.Errorf("failed to create tencent OCR client: %w", err)
+			return
+		}
 
 		instance = &TencentOCR{client}
 	})
 
-	return instance
+	return instance, initErr
 }
 
 func GetInstance() *TencentOCR {
-	if instance == nil {
-		logger.L().Fatal("tencent OCR instance not initialized, you should call Init first")
-		os.Exit(1)
-	}
-
 	return instance
 }
 
-func (o *TencentOCR) GetPdfInvoiceData(data *string, isPdf bool) (*ocr.VatInvoiceOCRResponse, error) {
-	request := ocr.NewVatInvoiceOCRRequest()
-
+func (o *TencentOCR) GetPdfInvoiceData(data *string, isPdf bool) (*tencentocr.VatInvoiceOCRResponse, error) {
+	request := tencentocr.NewVatInvoiceOCRRequest()
 	request.IsPdf = &isPdf
 	request.ImageBase64 = data
 	return o.Client.VatInvoiceOCR(request)
 }
 
-func (o *TencentOCR) GetOfdInvoiceData(data *string) (*ocr.VerifyOfdVatInvoiceOCRResponse, error) {
-	request := ocr.NewVerifyOfdVatInvoiceOCRRequest()
-
+func (o *TencentOCR) GetOfdInvoiceData(data *string) (*tencentocr.VerifyOfdVatInvoiceOCRResponse, error) {
+	request := tencentocr.NewVerifyOfdVatInvoiceOCRRequest()
 	request.OfdFileBase64 = data
 	return o.Client.VerifyOfdVatInvoiceOCR(request)
 }
 
-func (o *TencentOCR) GetGeneralAccurateData(data *string) (*ocr.GeneralAccurateOCRResponse, error) {
-	request := ocr.NewGeneralAccurateOCRRequest()
-
+func (o *TencentOCR) GetGeneralAccurateData(data *string) (*tencentocr.GeneralAccurateOCRResponse, error) {
+	request := tencentocr.NewGeneralAccurateOCRRequest()
 	request.ImageBase64 = data
 	return o.Client.GeneralAccurateOCR(request)
 }

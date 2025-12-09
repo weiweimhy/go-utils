@@ -3,16 +3,13 @@ package mongo
 import (
 	"context"
 	"fmt"
-	"os"
+	"sync"
 	"time"
 
+	"github.com/weiweimhy/go-utils/v2/logger"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.uber.org/zap"
-
-	"github.com/weiweimhy/go-utils/v2/logger"
-
-	"sync"
 )
 
 type Config struct {
@@ -58,7 +55,6 @@ func GetMongoDB(config Config) *DB {
 				zap.String("uri", config.Uri),
 				zap.Error(err),
 			)
-			os.Exit(1)
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), config.ConnectTimeout)
@@ -70,7 +66,6 @@ func GetMongoDB(config Config) *DB {
 				zap.String("uri", config.Uri),
 				zap.Error(err),
 			)
-			os.Exit(1)
 		}
 
 		database = &DB{
