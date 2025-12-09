@@ -14,54 +14,74 @@ type DownloadTask struct {
 	SavePath string
 	Callback func(url, savePath string, err error)
 	Client   *http.Client
-	Timeout  time.Duration
 }
 
 func (dt *DownloadTask) Execute() {
-	if dt.Client == nil {
-		timeout := dt.Timeout
-		if timeout <= 0 {
-			timeout = defaultDownloadTimeout
-		}
-		dt.Client = &http.Client{
-			Timeout: timeout,
-		}
+	client := dt.Client
+	if client == nil {
+		client = defaultDownloadClient
 	}
 
-	err := downloadFile(dt.Client, dt.URL, dt.SavePath)
+	err := DownloadFileWithClient(client, dt.URL, dt.SavePath)
 
 	if dt.Callback != nil {
 		dt.Callback(dt.URL, dt.SavePath, err)
 	}
 }
 
-// NewDownloadTask 创建下载任务，使用默认超时时间
+// NewDownloadTask 创建下载任务，使用默认共享 Client
 func NewDownloadTask(url, savePath string, callback func(url, savePath string, err error)) *DownloadTask {
-	return NewDownloadTaskWithTimeout(url, savePath, defaultDownloadTimeout, callback)
-}
-
-// NewDownloadTaskWithTimeout 创建下载任务，可自定义超时时间
-func NewDownloadTaskWithTimeout(url, savePath string, timeout time.Duration, callback func(url, savePath string, err error)) *DownloadTask {
 	return &DownloadTask{
 		URL:      url,
 		SavePath: savePath,
 		Callback: callback,
-		Timeout:  timeout,
 	}
 }
 
-// DownloadBatch 批量下载文件（使用 WorkerPool + Task 模式）
-// 这是推荐的批量下载方式，符合项目规范
+// NewDownloadTaskWithClient 创建下载任务，使用自定义 Client
+func NewDownloadTaskWithClient(client *http.Client, url, savePath string, callback func(url, savePath string, err error)) *DownloadTask {
+	return &DownloadTask{
+		URL:      url,
+		SavePath: savePath,
+		Callback: callback,
+		Client:   client,
+	}
+}
+
+// DownloadBatch 批量下载文件，使用默认共享 Client
 func DownloadBatch(pool *task.WorkerPool, tasks []*DownloadTask) error {
+	return DownloadBatchWithClient(pool, nil, tasks)
+}
+
+// DownloadBatchWithClient 批量下载文件，使用指定 Client
+func DownloadBatchWithClient(pool *task.WorkerPool, client *http.Client, tasks []*DownloadTask) error {
 	if pool == nil {
 		return fmt.Errorf("worker pool is nil")
 	}
 
 	for _, dt := range tasks {
+		if client != nil && dt.Client == nil {
+			dt.Client = client
+		}
 		if !pool.Submit(dt) {
 			return fmt.Errorf("failed to submit download task: %s", dt.URL)
 		}
 	}
 
 	return nil
+}
+
+// NewDownloadClient 创建自定义超时的下载 Client
+func NewDownloadClient(timeout time.Duration) *http.Client {
+	if timeout <= 0 {
+		timeout = defaultDownloadTimeout
+	}
+	return &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
 }

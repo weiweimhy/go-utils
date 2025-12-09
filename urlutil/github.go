@@ -1,4 +1,4 @@
-package httputil
+package urlutil
 
 import (
 	"fmt"
@@ -14,11 +14,5 @@ func GetGitHubRawUrl(browseUrl string) (string, error) {
 		return "", fmt.Errorf("invalid GitHub URL: %s", browseUrl)
 	}
 	return fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/", matches[1], matches[2], matches[3]), nil
-}
-
-// GetGitHubRwaUrl 已废弃，请使用 GetGitHubRawUrl
-// Deprecated: Use GetGitHubRawUrl instead
-func GetGitHubRwaUrl(browseUrl string) (string, error) {
-	return GetGitHubRawUrl(browseUrl)
 }
 
