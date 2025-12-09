@@ -5,9 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v2/logger"
 	"github.com/weiweimhy/go-utils/v2/task"
-	"go.uber.org/zap"
 )
 
 // DownloadTask 实现 Task 接口，用于 WorkerPool
@@ -30,21 +28,7 @@ func (dt *DownloadTask) Execute() {
 		}
 	}
 
-	logger.L().Info("downloading file",
-		zap.String("url", dt.URL),
-		zap.String("save_path", dt.SavePath))
-
 	err := downloadFile(dt.Client, dt.URL, dt.SavePath)
-	if err != nil {
-		logger.L().Warn("download failed",
-			zap.String("url", dt.URL),
-			zap.String("save_path", dt.SavePath),
-			zap.Error(err))
-	} else {
-		logger.L().Info("download completed",
-			zap.String("url", dt.URL),
-			zap.String("save_path", dt.SavePath))
-	}
 
 	if dt.Callback != nil {
 		dt.Callback(dt.URL, dt.SavePath, err)

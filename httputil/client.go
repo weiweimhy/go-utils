@@ -4,38 +4,42 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/weiweimhy/go-utils/v2/logger"
-	"go.uber.org/zap"
+	"time"
 )
 
+const defaultClientTimeout = 30 * time.Second
+
 func GetBytesFromUrl(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+	return GetBytesFromUrlWithTimeout(url, defaultClientTimeout)
+}
+
+func GetBytesFromUrlWithTimeout(url string, timeout time.Duration) ([]byte, error) {
+	if timeout <= 0 {
+		timeout = defaultClientTimeout
+	}
+	client := &http.Client{Timeout: timeout}
+
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}
-
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			logger.L().Warn("failed to close http response body",
-				zap.String("url", url),
-				zap.Error(err))
-		}
-	}(resp.Body)
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("download failed, url: %v, status code: %v", url, resp.StatusCode)
+		return nil, fmt.Errorf("request failed, url: %s, status code: %d", url, resp.StatusCode)
 	}
 
 	return io.ReadAll(resp.Body)
 }
 
 func GetStringFromUrl(url string) (string, error) {
-	data, err := GetBytesFromUrl(url)
+	return GetStringFromUrlWithTimeout(url, defaultClientTimeout)
+}
+
+func GetStringFromUrlWithTimeout(url string, timeout time.Duration) (string, error) {
+	data, err := GetBytesFromUrlWithTimeout(url, timeout)
 	if err != nil {
 		return "", err
 	}
-
 	return string(data), nil
 }
