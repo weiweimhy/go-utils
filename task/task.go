@@ -1,5 +1,7 @@
 package task
 
+import "context"
+
 type Task interface {
-	Execute()
+	Execute(ctx context.Context)
 }

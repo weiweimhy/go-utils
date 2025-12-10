@@ -59,7 +59,7 @@ func (w *WorkerPool) workerLoop(cl *logger.CtxLogger) {
 				cl.Log.Debug("worker loop exit with chan close")
 				return
 			}
-			task.Execute()
+			task.Execute(w.Ctx)
 		}
 	}
 }
@@ -85,8 +85,8 @@ func (w *WorkerPool) Close(timeout time.Duration) {
 
 	select {
 	case <-done:
-		w.Log.Info("worker pool exit beautifully")
+		w.Log.Info("worker pool exit beautifully", zap.Uint64("goroutine_id", logger.GetGoroutineID()))
 	case <-time.After(timeout):
-		w.Log.Warn("worker pool exit within timeout")
+		w.Log.Warn("worker pool exit within timeout", zap.Uint64("goroutine_id", logger.GetGoroutineID()))
 	}
 }
