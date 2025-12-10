@@ -2,7 +2,6 @@ package ocr
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
@@ -18,36 +17,20 @@ type TencentOCR struct {
 	*tencentocr.Client
 }
 
-var (
-	instance *TencentOCR
-	initErr  error
-	endpoint = "ocr.tencentcloudapi.com"
-	once     sync.Once
-)
+func NewTencentOCR(config *TencentOCRConfig) (*TencentOCR, error) {
+	credential := common.NewCredential(
+		config.SecretId,
+		config.SecretKey,
+	)
+	cpf := profile.NewClientProfile()
+	cpf.HttpProfile.Endpoint = "ocr.tencentcloudapi.com"
 
-func Init(config *TencentOCRConfig) (*TencentOCR, error) {
-	once.Do(func() {
-		credential := common.NewCredential(
-			config.SecretId,
-			config.SecretKey,
-		)
-		cpf := profile.NewClientProfile()
-		cpf.HttpProfile.Endpoint = endpoint
+	client, err := tencentocr.NewClient(credential, "", cpf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tencent OCR client: %w", err)
+	}
 
-		client, err := tencentocr.NewClient(credential, "", cpf)
-		if err != nil {
-			initErr = fmt.Errorf("failed to create tencent OCR client: %w", err)
-			return
-		}
-
-		instance = &TencentOCR{client}
-	})
-
-	return instance, initErr
-}
-
-func GetInstance() *TencentOCR {
-	return instance
+	return &TencentOCR{client}, nil
 }
 
 func (o *TencentOCR) GetPdfInvoiceData(data *string, isPdf bool) (*tencentocr.VatInvoiceOCRResponse, error) {
