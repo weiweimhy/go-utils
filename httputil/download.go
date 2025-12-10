@@ -27,11 +27,7 @@ func DownloadFile(url string, path string) error {
 }
 
 func DownloadFileWithTimeout(url string, path string, timeout time.Duration) error {
-	if timeout <= 0 {
-		timeout = defaultDownloadTimeout
-	}
-	client := &http.Client{Timeout: timeout}
-	return DownloadFileWithClient(client, url, path)
+	return DownloadFileWithContextTimeout(context.Background(), url, path, timeout)
 }
 
 func DownloadFileWithClient(client *http.Client, url string, path string) error {
@@ -72,4 +68,15 @@ func DownloadFileWithContext(ctx context.Context, client *http.Client, url strin
 
 	_, err = io.Copy(file, resp.Body)
 	return err
+}
+
+// DownloadFileWithContextTimeout 同时支持 context 取消和超时
+func DownloadFileWithContextTimeout(ctx context.Context, url string, path string, timeout time.Duration) error {
+	if timeout <= 0 {
+		timeout = defaultDownloadTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	return DownloadFileWithContext(ctx, defaultDownloadClient, url, path)
 }
