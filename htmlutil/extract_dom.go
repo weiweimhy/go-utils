@@ -1,6 +1,7 @@
 package htmlutil
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -162,7 +163,7 @@ func ExtractAllTextDOM(htmlContent string) (string, error) {
 		return "", fmt.Errorf("failed to parse HTML: %w", err)
 	}
 
-	var result strings.Builder
+	var result bytes.Buffer
 	var traverse func(*html.Node)
 	traverse = func(n *html.Node) {
 		if n.Type == html.TextNode {
@@ -185,7 +186,7 @@ func ExtractAllTextDOM(htmlContent string) (string, error) {
 
 // extractTextFromNode 从节点及其子节点中提取所有文字内容
 func extractTextFromNode(n *html.Node) string {
-	var result strings.Builder
+	var result bytes.Buffer
 	var traverse func(*html.Node)
 	traverse = func(node *html.Node) {
 		if node.Type == html.TextNode {
