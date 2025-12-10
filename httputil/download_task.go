@@ -1,6 +1,7 @@
 package httputil
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -16,13 +17,13 @@ type DownloadTask struct {
 	Client   *http.Client
 }
 
-func (dt *DownloadTask) Execute() {
+func (dt *DownloadTask) Execute(ctx context.Context) {
 	client := dt.Client
 	if client == nil {
 		client = defaultDownloadClient
 	}
 
-	err := DownloadFileWithClient(client, dt.URL, dt.SavePath)
+	err := DownloadFileWithContext(ctx, client, dt.URL, dt.SavePath)
 
 	if dt.Callback != nil {
 		dt.Callback(dt.URL, dt.SavePath, err)

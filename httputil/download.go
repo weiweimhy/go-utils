@@ -1,6 +1,7 @@
 package httputil
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,11 +35,21 @@ func DownloadFileWithTimeout(url string, path string, timeout time.Duration) err
 }
 
 func DownloadFileWithClient(client *http.Client, url string, path string) error {
+	return DownloadFileWithContext(context.Background(), client, url, path)
+}
+
+// DownloadFileWithContext 支持通过 context 取消的下载
+func DownloadFileWithContext(ctx context.Context, client *http.Client, url string, path string) error {
 	if client == nil {
 		client = defaultDownloadClient
 	}
 
-	resp, err := client.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
