@@ -18,6 +18,11 @@ type WorkerPool struct {
 	wait   sync.WaitGroup
 }
 
+type TaskGroup struct {
+	pool *WorkerPool
+	wg   sync.WaitGroup
+}
+
 func NewWorkerPool(workNumber int, buffer int) *WorkerPool {
 	tasks := make(chan Task, buffer)
 
@@ -71,6 +76,36 @@ func (w *WorkerPool) Submit(task Task) bool {
 	case <-w.Ctx.Done():
 		return false
 	}
+}
+
+func (w *WorkerPool) NewGroup() *TaskGroup {
+	return &TaskGroup{pool: w}
+}
+
+func (g *TaskGroup) Submit(task Task) bool {
+	select {
+	case <-g.pool.Ctx.Done():
+		return false
+	default:
+	}
+
+	g.wg.Add(1)
+	wrapped := TaskFunc(func(ctx context.Context) {
+		defer g.wg.Done()
+		task.Execute(ctx)
+	})
+
+	select {
+	case g.pool.tasks <- wrapped:
+		return true
+	case <-g.pool.Ctx.Done():
+		g.wg.Done()
+		return false
+	}
+}
+
+func (g *TaskGroup) Wait() {
+	g.wg.Wait()
 }
 
 func (w *WorkerPool) Close(timeout time.Duration) {

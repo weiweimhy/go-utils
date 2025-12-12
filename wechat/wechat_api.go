@@ -1,14 +1,14 @@
 package wechat
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/bytedance/sonic"
-	"github.com/weiweimhy/go-utils/v2/logger"
-	"go.uber.org/zap"
+	"github.com/weiweimhy/go-utils/customUtils"
+	"github.com/weiweimhy/go-utils/logger"
 )
 
 type WeChatSession struct {
@@ -19,56 +19,49 @@ type WeChatSession struct {
 	ErrMsg     string `json:"errmsg"`
 }
 
-const jscode2sessionURL = "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code"
+const JSCODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code"
 
-var defaultWechatClient = &http.Client{
-	Timeout: 30 * time.Second,
-}
-
-func GetSession(appid, secret, js_code string) (WeChatSession, error) {
+// GetSession 获取微信会话信息，支持 Context 取消
+func GetSession(ctx context.Context, appid, secret, js_code string) (WeChatSession, error) {
 	defer logger.Trace(logger.L(), "wechat.GetSession")()
 
-	if appid == "" {
-		return WeChatSession{}, logger.InvalidParam(logger.L(), "appid is required", zap.String("param", "appid"))
-	}
-	if secret == "" {
-		return WeChatSession{}, logger.InvalidParam(logger.L(), "secret is required", zap.String("param", "secret"))
-	}
-	if js_code == "" {
-		return WeChatSession{}, logger.InvalidParam(logger.L(), "js_code is required", zap.String("param", "js_code"))
+	if appid == "" || secret == "" || js_code == "" {
+		return WeChatSession{}, fmt.Errorf("appid, secret and js_code are required")
 	}
 
-	url := fmt.Sprintf(jscode2sessionURL, appid, secret, js_code)
-	rsp, err := defaultWechatClient.Get(url)
+	url := fmt.Sprintf(JSCODE2SESSION_URL, appid, secret, js_code)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return WeChatSession{}, err
+	}
+
+	rsp, err := customUtils.DefaultHttpClient.Do(req)
 	if err != nil {
 		return WeChatSession{}, fmt.Errorf("failed to request wechat api: %w", err)
 	}
-
-	if rsp.Body != nil {
-		defer func(Body io.ReadCloser) {
-			err := Body.Close()
-			if err != nil {
-				logger.L().Warn("failed to close response body",
-					zap.String("func", "wechat.GetSession"),
-					zap.Error(err),
-				)
-			}
-		}(rsp.Body)
-	}
+	defer func() {
+		if rsp.Body != nil {
+			_ = rsp.Body.Close()
+		}
+	}()
 
 	if rsp.StatusCode != http.StatusOK {
-		return WeChatSession{}, fmt.Errorf("wechat api returned non-200 status: %d", rsp.StatusCode)
+		return WeChatSession{}, fmt.Errorf("wechat api status: %d", rsp.StatusCode)
 	}
 
 	body, err := io.ReadAll(rsp.Body)
 	if err != nil {
-		return WeChatSession{}, fmt.Errorf("failed to read response body: %w", err)
+		return WeChatSession{}, fmt.Errorf("failed to read body: %w", err)
 	}
 
-	session := WeChatSession{}
-	err = sonic.Unmarshal(body, &session)
-	if err != nil {
-		return WeChatSession{}, fmt.Errorf("failed to unmarshal response: %w", err)
+	var session WeChatSession
+	if err := sonic.Unmarshal(body, &session); err != nil {
+		return WeChatSession{}, fmt.Errorf("failed to decode response: %w", err)
 	}
+
+	if session.ErrCode != 0 {
+		return session, fmt.Errorf("wechat api error: [%d] %s", session.ErrCode, session.ErrMsg)
+	}
+
 	return session, nil
 }
