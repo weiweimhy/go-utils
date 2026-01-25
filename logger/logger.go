@@ -54,6 +54,15 @@ func WithFilename(f string) Option     { return func(o *Options) { o.Filename = 
 func WithLevel(l zapcore.Level) Option { return func(o *Options) { o.Level = l } }
 func WithDevelopment(d bool) Option    { return func(o *Options) { o.Development = d } }
 
+func WithSampler(initial, thereafter int) Option {
+	return func(o *Options) {
+		o.Sampling = &zap.SamplingConfig{
+			Initial:    initial,
+			Thereafter: thereafter,
+		}
+	}
+}
+
 // Init 使用 Functional Options 初始化全局 Logger
 func Init(opts ...Option) {
 	once.Do(func() {
