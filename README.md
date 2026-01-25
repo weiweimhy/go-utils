@@ -4,11 +4,11 @@
 
 ## 🚀 核心特性
 
-- **模块化设计**：按功能深度拆分（httputil, download, fsutil, etc.），结构清晰。
-- **全链路 Context**：原生支持生命周期管控，防止资源泄漏。
-- **Mock-Ready**：关键组件（Mongo, OCR）抽象为接口，方便业务层进行单元测试。
-- **内存优化**：Epub 模块采用流式/分块处理，支持超大文件。
-- **工业级安全**：锁定的 HTTP 客户端，内置合理的超时与连接池配置。
+- **模块化设计**：功能拆分清晰（httputil, download, fsutil 等），按需导入。
+- **全链路 Context**：原生支持生命周期管控与超时控制，防止资源泄漏。
+- **Mock-Ready**：关键组件（Mongo, OCR）抽象为接口，极简 Mock 单元测试。
+- **性能卓越**：集成 `zap` (日志), `sonic` (JSON), `bbolt` 等高性能底层组件。
+- **内存优化**：Epub 模块采用流式/分块处理，轻松应对超大文件。
 
 ## 📦 安装
 
@@ -18,103 +18,90 @@ go get github.com/weiweimhy/go-utils
 
 ---
 
-## 🛠 组件说明
+## 🛠 常用包速查表
+
+| 包名 | 核心功能 | 适用场景 |
+| :--- | :--- | :--- |
+| `logger` | 结构化日志、Trace 追踪 | 全局日志记录、函数耗时分析 |
+| `httputil` | 安全 HTTP 客户端、GitHub 接口 | 远程 API 调用 |
+| `fsutil` | 增强型文件/目录操作 | 读写文件、自动创建父目录 |
+| `download` | 高并发下载管理器 | 批量文件下载、并发受控 |
+| `cryptoutil` | 常用 Hash & Base64 | 数据校验、编码转换 |
+| `mongo` | 接口化 MongoDB 客户端 | 数据库 CRUD |
+| `epub` | 高性能 EPUB 解析修改 | 电子书处理 |
+| `errs` | 统一错误映射 | 业务错误码规范化 |
+
+---
+
+## 📖 快速上手
 
 ### 1. 高性能日志 (logger)
-支持 Functional Options 配置模式，内置采样和 Trace 功能。
-
 ```go
 import "github.com/weiweimhy/go-utils/logger"
 
-// 1. 初始化
+// 初始化（建议在 main 或 init 中执行一次）
 logger.Init(
+    logger.WithFilename("./logs/app.log"),
     logger.WithLevel(zap.InfoLevel),
-    logger.WithFilename("./logs/service.log"),
 )
 
-logger.L().Info("service started", zap.String("version", "1.0"))
-
-// 3. 函数跟踪 (Trace)
-func MyBiz() {
-    defer logger.Trace(logger.L(), "MyBiz")()
-    // ... 业务逻辑
+// 使用：记录并追踪函数执行
+func Process() {
+    defer logger.Trace(logger.L(), "Process")()
+    logger.L().Info("working", zap.String("id", "123"))
 }
 ```
 
-### 2. MongoDB 客户端 (mongo)
-接口化设计，支持全量 Context 传递。
-
+### 2. 数据库操作 (mongo)
 ```go
 import "github.com/weiweimhy/go-utils/mongo"
 
-// 创建实例
-client, err := mongo.NewClient(ctx, mongo.Config{
-    Uri:          "mongodb://localhost:27017",
-    DatabaseName: "mydb",
-    OPTimeout:    5 * time.Second,
+// 创建满足接口的实例
+client, _ := mongo.NewClient(ctx, mongo.Config{
+    Uri: "mongodb://localhost:27017",
+    DatabaseName: "app_db",
+    OPTimeout: 5 * time.Second,
 })
 
-// 使用接口操作
-err = client.FindOne(ctx, "users", bson.M{"id": 1}, &user)
+// 使用接口而非具体实现，方便 Mock
+var user struct{ Name string }
+client.FindOne(ctx, "users", bson.M{"id": 1}, &user)
 ```
 
-### 3. 下载管理器 (download)
-支持并发控制和级联取消。
-
+### 3. 高并发下载 (download)
 ```go
 import "github.com/weiweimhy/go-utils/download"
 
-// 创建管理器
-dm := download.NewDownloadManager(
-    download.WithWorkers(10),
-    download.WithDelay(100 * time.Millisecond),
-)
-
-// 启动
+dm := download.NewDownloadManager(download.WithWorkers(5))
 dm.Start(ctx)
 
-// 添加任务
-dm.Add("http://example.com/file.zip", "./downloads/file.zip")
-
-// 等待完成
+// 任务式添加，自动并发执行
+dm.Add("https://example.com/a.jpg", "./data/a.jpg")
 dm.Wait()
 ```
 
-### 4. EPUB 处理 (epub)
-内存优化的按需加载模式。
-
+### 4. 工具包示例 (fsutil/cryptoutil)
 ```go
-import "github.com/weiweimhy/go-utils/epub"
+import (
+    "github.com/weiweimhy/go-utils/fsutil"
+    "github.com/weiweimhy/go-utils/cryptoutil"
+)
 
-e, err := epub.Open("book.epub")
-defer e.Close()
+// 安全重命名：自动确保父目录存在
+fsutil.SaveToFile("./out/config.json", data)
 
-// 并发安全地批量处理页面，而不耗尽内存
-e.ApplyHTML(func(name, html string) (string, error) {
-    return strings.ReplaceAll(html, "old", "new"), nil
-})
-
-e.Save("book_new.epub")
-```
-
-### 5. 统一错误定义 (errs)
-方便开发者进行错误匹配。
-
-```go
-import "github.com/weiweimhy/go-utils/errs"
-
-if errors.Is(err, errs.ErrTimeout) {
-    // 处理超时逻辑
-}
+// 快速 SHA256
+hash := cryptoutil.SHA256String("hello")
 ```
 
 ---
 
 ## 🛡 开发规范 (项目准则)
 
-- **禁止直接使用 `zap.L()`**：请务必使用 `logger.L()` 获通过 `context` 传递 Logger。
-- **必需传 Context**：所有 IO 操作必须接收 `context` 参数以确保生命周期受控。
-- **优先使用接口**：在业务层注入依赖时，请声明 `IMongoClient` 或 `IOCRClient`。
+为保持工业级代码质量，接入项目请遵循：
+1. **必需传 Context**：所有 IO 操作必须接收 `context` 参数以确保生命周期受控。
+2. **禁止直接使用 `zap.L()`**：请通过 `logger.L()` 获取受控配置的实例。
+3. **接口编程**：注入依赖时优先声明 `IMongoClient` 等接口，提升代码解耦度。
 
 ## 📄 License
 MIT License
