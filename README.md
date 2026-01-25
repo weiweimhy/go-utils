@@ -16,6 +16,17 @@
 go get github.com/weiweimhy/go-utils
 ```
 
+### 🆙 升级库
+要升级到最新版本，请运行：
+```bash
+go get -u github.com/weiweimhy/go-utils
+go mod tidy
+```
+若需升级到特定版本：
+```bash
+go get github.com/weiweimhy/go-utils@v3.1.2
+```
+
 ---
 
 ## 🛠 常用包速查表
@@ -102,6 +113,17 @@ hash := cryptoutil.SHA256String("hello")
 1. **必需传 Context**：所有 IO 操作必须接收 `context` 参数以确保生命周期受控。
 2. **禁止直接使用 `zap.L()`**：请通过 `logger.L()` 获取受控配置的实例。
 3. **接口编程**：注入依赖时优先声明 `IMongoClient` 等接口，提升代码解耦度。
+
+## 📈 版本管理
+本项目遵循 [Semantic Versioning](https://semver.org/)。
+- **主版本号 (Major)**: 包含不兼容的 API 变更。
+- **次版本号 (Minor)**: 包含向后兼容的功能性新增。
+- **修订号 (Patch)**: 包含向后兼容的问题修正。
+
+发布新版本时，请确保：
+1. 更新 `rules/rules.md` 中的 Go 版本和定位。
+2. 运行 `go mod tidy`。
+3. 执行 `git tag vX.Y.Z` 并推送到远端。
 
 ## 📄 License
 MIT License

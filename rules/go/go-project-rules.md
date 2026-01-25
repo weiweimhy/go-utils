@@ -84,50 +84,10 @@
   }
   ```
 
-### 1.4 Worker Pool 实现规范
-- **所有工作池必须使用** `WorkerPool` + `Task` 模式实现
-- **原因**：
-  - 统一工作池实现，便于管理和维护
-  - 提供标准的生命周期管理（启动、提交任务、优雅关闭）
-  - 避免重复实现，减少 bug
-- **示例**：
-  ```go
-  // ✅ 推荐：使用 WorkerPool + Task 模式
-  import "github.com/weiweimhy/go-utils/task"
-  
-  type MyTask struct {
-      data string
-  }
-  
-  func (t *MyTask) Execute() {
-      // 处理任务
-      processData(t.data)
-  }
-  
-  func main() {
-      pool := task.NewWorkerPool(10, 100) // 10 个 worker，缓冲区 100
-      defer pool.Close(30 * time.Second)
-      
-      // 提交任务
-      pool.Submit(&MyTask{data: "test"})
-  }
-  
-  // ❌ 禁止：自己实现工作池
-  func main() {
-      jobs := make(chan Job, 100)
-      var wg sync.WaitGroup
-      for i := 0; i < 10; i++ {
-          wg.Add(1)
-          go func() {
-              defer wg.Done()
-              for job := range jobs {
-                  processJob(job)
-              }
-          }()
-      }
-      // ❌ 禁止：重复实现，容易出错
-  }
-  ```
+// ❌ 禁止：自己实现并管理 goroutine 却无关闭机制
+func main() {
+    // 应当使用统一的并发模式或确保有 context 传播
+}
 
 ### 1.3 Channel 使用规范
 - **必须**带缓冲或者配合 `select` + `ctx.Done()`
@@ -186,6 +146,51 @@
           ch <- task // ❌ 可能阻塞，如果接收方未准备好
       }
       close(ch)
+  }
+  ```
+
+### 1.4 Worker Pool 实现规范
+- **所有工作池必须使用** `WorkerPool` + `Task` 模式实现
+- **原因**：
+  - 统一工作池实现，便于管理和维护
+  - 提供标准的生命周期管理（启动、提交任务、优雅关闭）
+  - 避免重复实现，减少 bug
+- **示例**：
+  ```go
+  // ✅ 推荐：使用 WorkerPool + Task 模式
+  import "github.com/weiweimhy/go-utils/task"
+  
+  type MyTask struct {
+      data string
+  }
+  
+  func (t *MyTask) Execute() {
+      // 处理任务
+      processData(t.data)
+  }
+  
+  func main() {
+      pool := task.NewWorkerPool(10, 100) // 10 个 worker，缓冲区 100
+      defer pool.Close(30 * time.Second)
+      
+      // 提交任务
+      pool.Submit(&MyTask{data: "test"})
+  }
+  
+  // ❌ 禁止：自己实现工作池
+  func main() {
+      jobs := make(chan Job, 100)
+      var wg sync.WaitGroup
+      for i := 0; i < 10; i++ {
+          wg.Add(1)
+          go func() {
+              defer wg.Done()
+              for job := range jobs {
+                  processJob(job)
+              }
+          }()
+      }
+      // ❌ 禁止：重复实现，容易出错
   }
   ```
 
@@ -317,8 +322,8 @@
 - **对于通用库方法，禁止使用 os.Exit**，必须返回 `error`。
 
 ### 3.2 配置解析规范 (工具支持)
-- **本项目提供** `pflag` + `viper` 的封装支持，通过 `config` 模块使用。
-- **作为库开发时**，应尽量减少对外部配置系统的强制依赖。
+- **本项目作为库开发**，应尽量减少对外部配置系统的强制依赖。
+- 所有的配置应当通过 `Functional Options` 或公开的 `Config` 结构体传递。
 
 ### 3.3 Graceful Shutdown
 - **所有服务启动必须实现** graceful shutdown（监听 SIGINT/SIGTERM）
@@ -445,13 +450,7 @@
 - **示例**：
   ```go
   // ✅ 推荐：使用 logger 封装库
-  import (
-      "github.com/weiweimhy/go-utils/logger"
-      "go.uber.org/zap"
-  )
-  ```
-  
-  logger.InitProduction()
+  logger.Init(logger.WithLevel(zap.InfoLevel))
   logger.L().Info("message", zap.String("key", "value"))
   
   // ✅ 推荐：使用 FromContext（如果有 context）
@@ -545,14 +544,14 @@
 - **必须**在使用 `sync.WaitGroup` 时配合 `defer wg.Done()`
 - **必须**在 `sync.WaitGroup` 中将 `wg.Add(1)` 放在 goroutine 外部
 - **必须**使用带缓冲的 channel 或配合 `select` + `ctx.Done()` 使用 channel
-- **必须**使用 `WorkerPool` + `Task` 模式实现所有工作池
+- **必须** 在包内部启动 goroutine 时提供关闭机制
 - **必须**在生产环境使用 `zap.Logger`（禁止使用 `zap.SugaredLogger`）
 - **必须**在生产环境开启日志 Sampling（Initial: 100, Thereafter: 100）
 - **必须**在生产环境使用高性能 JSON 库（`sonic` 或 `jsoniter`，禁止使用标准库 `json`）
 - **必须**使用 `strings.Join` 或 `bytes.Buffer` 进行字符串拼接（禁止 `strings.Builder` + `fmt.Sprintf`）
 - **必须**使用 `sync.Pool` 复用所有 `[]byte`
 - **必须**在启动参数校验失败时使用 `os.Exit(1)`，禁止 return error
-- **必须**使用 `pflag` + `viper` 管理所有配置，禁止自己解析 flag
+- **必须**使用 `Functional Options` 管理复杂配置，禁止硬编码
 - **必须**实现 graceful shutdown（监听 SIGINT/SIGTERM）
 - **必须**在端口监听失败时使用 `log.Fatal`，禁止 return error
 - **必须**使用 `go.mod` 指定所有第三方库的版本，禁止使用 master/latest
@@ -573,14 +572,14 @@
 - **禁止**将 `wg.Add(1)` 放在 goroutine 内部
 - **禁止**使用 `sync.WaitGroup` 时不配合 `defer wg.Done()`
 - **禁止**使用无缓冲 channel 且不配合 `select` + `ctx.Done()`
-- **禁止**自己实现工作池，必须使用 `WorkerPool` + `Task` 模式
+- **禁止** 内部启动无法管理的“孤儿” goroutine
 - **禁止**在生产环境使用 `zap.SugaredLogger`（性能差 5~10 倍）
 - **禁止**在生产环境使用 `encoding/json.Marshal`，必须使用 `sonic` 或 `jsoniter`
 - **禁止**使用 `strings.Builder` + `fmt.Sprintf`，必须使用 `strings.Join` 或 `bytes.Buffer`
 - **禁止**在性能敏感路径使用 `reflect` 包
 - **禁止**不使用 `sync.Pool` 复用 `[]byte`
 - **禁止**启动参数校验失败时 return error，必须使用 `os.Exit(1)`
-- **禁止**自己解析 flag，必须使用 `pflag` + `viper`
+- **禁止** 在库代码中引入对特定配置框架（如 viper）的硬依赖
 - **禁止**服务启动时不实现 graceful shutdown
 - **禁止**端口监听失败时 return error，必须使用 `log.Fatal`
 - **禁止**使用 master/latest/main 等标签作为依赖版本，必须使用具体版本号
