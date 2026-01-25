@@ -1,4 +1,4 @@
-package customUtils
+package regexputil
 
 import "regexp"
 

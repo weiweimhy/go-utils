@@ -1,9 +1,11 @@
-package customUtils
+package fsutil
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/weiweimhy/go-utils/cryptoutil"
 )
 
 func IsFileExist(path string) bool {
@@ -28,7 +30,7 @@ func GetFileBase64(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return GetBase64FromBytes(data), nil
+	return cryptoutil.GetBase64FromBytes(data), nil
 }
 
 func GetStringFormFile(path string) (string, error) {

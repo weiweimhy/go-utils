@@ -1,4 +1,4 @@
-package customUtils
+package fsutil
 
 import (
 	"os"

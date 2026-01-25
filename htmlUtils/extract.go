@@ -1,150 +1,207 @@
 package htmlUtils
 
 import (
-	"regexp"
 	"strings"
+
+	"golang.org/x/net/html"
 )
 
-// ExtractTextByTag 从 HTML 中提取指定标签的文字内容
-// htmlContent: HTML 内容
-// tagName: 标签名称（不包含尖括号，如 "p", "h1", "div"）
-// 返回所有匹配标签的文字内容列表
+// ExtractTextByTag 使用 DOM 解析器从 HTML 中提取指定标签的文字内容。
+// tagName 为标签名称，如 "p", "h1", "div"（不含尖括号）。
 func ExtractTextByTag(htmlContent, tagName string) []string {
 	if htmlContent == "" || tagName == "" {
 		return nil
 	}
 
-	var results []string
-	// 匹配开始标签和结束标签之间的内容
-	pattern := `<` + regexp.QuoteMeta(tagName) + `[^>]*>(.*?)</` + regexp.QuoteMeta(tagName) + `>`
-	re := regexp.MustCompile(`(?i)` + pattern) // 不区分大小写
+	doc, err := html.Parse(strings.NewReader(htmlContent))
+	if err != nil {
+		return nil
+	}
 
-	matches := re.FindAllStringSubmatch(htmlContent, -1)
-	for _, match := range matches {
-		if len(match) > 1 {
-			text := stripHTMLTags(match[1])
-			text = strings.TrimSpace(text)
+	var results []string
+	var traverse func(*html.Node)
+	traverse = func(n *html.Node) {
+		if n.Type == html.ElementNode && strings.EqualFold(n.Data, tagName) {
+			text := extractTextFromNode(n)
 			if text != "" {
 				results = append(results, text)
 			}
 		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			traverse(c)
+		}
 	}
+	traverse(doc)
 
 	return results
 }
 
-// ExtractTextByTagWithAttr 从 HTML 中提取指定标签且包含特定属性的文字内容
-// htmlContent: HTML 内容
-// tagName: 标签名称
-// attrName: 属性名称
-// attrValue: 属性值（可选，如果为空则只检查属性是否存在）
-// 返回所有匹配标签的文字内容列表
+// ExtractTextByTagWithAttr 使用 DOM 解析器提取指定标签且包含特定属性的文字内容。
+// tagName 为标签名，attrName 为属性名，attrValue 为属性值（为空则只检查属性是否存在）。
 func ExtractTextByTagWithAttr(htmlContent, tagName, attrName, attrValue string) []string {
 	if htmlContent == "" || tagName == "" || attrName == "" {
 		return nil
 	}
 
-	var results []string
-	var pattern string
-
-	if attrValue == "" {
-		// 只检查属性是否存在
-		pattern = `<` + regexp.QuoteMeta(tagName) + `[^>]*` + regexp.QuoteMeta(attrName) + `\s*=\s*["'][^"']*["'][^>]*>(.*?)</` + regexp.QuoteMeta(tagName) + `>`
-	} else {
-		// 检查属性值是否匹配
-		pattern = `<` + regexp.QuoteMeta(tagName) + `[^>]*` + regexp.QuoteMeta(attrName) + `\s*=\s*["']` + regexp.QuoteMeta(attrValue) + `["'][^>]*>(.*?)</` + regexp.QuoteMeta(tagName) + `>`
+	doc, err := html.Parse(strings.NewReader(htmlContent))
+	if err != nil {
+		return nil
 	}
 
-	re := regexp.MustCompile(`(?i)` + pattern) // 不区分大小写
+	var results []string
+	var traverse func(*html.Node)
+	traverse = func(n *html.Node) {
+		if n.Type == html.ElementNode && strings.EqualFold(n.Data, tagName) {
+			attrValueFound := ""
+			for _, attr := range n.Attr {
+				if strings.EqualFold(attr.Key, attrName) {
+					attrValueFound = attr.Val
+					break
+				}
+			}
 
-	matches := re.FindAllStringSubmatch(htmlContent, -1)
-	for _, match := range matches {
-		if len(match) > 1 {
-			text := stripHTMLTags(match[1])
-			text = strings.TrimSpace(text)
-			if text != "" {
-				results = append(results, text)
+			if attrValueFound != "" || attrValue == "" {
+				if attrValue == "" || attrValueFound == attrValue {
+					text := extractTextFromNode(n)
+					if text != "" {
+						results = append(results, text)
+					}
+				}
 			}
 		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			traverse(c)
+		}
 	}
+	traverse(doc)
 
 	return results
 }
 
-// ExtractTextByClass 从 HTML 中提取指定 class 的标签文字内容
-// htmlContent: HTML 内容
-// className: CSS class 名称
-// 返回所有匹配标签的文字内容列表
+// ExtractTextByClass 使用 DOM 解析器提取指定 class 的标签文字内容。
 func ExtractTextByClass(htmlContent, className string) []string {
 	if htmlContent == "" || className == "" {
 		return nil
 	}
 
-	var results []string
-	// 匹配包含指定 class 的标签
-	pattern := `<[^>]+class\s*=\s*["'][^"']*\b` + regexp.QuoteMeta(className) + `\b[^"']*["'][^>]*>(.*?)</[^>]+>`
-	re := regexp.MustCompile(`(?i)` + pattern)
+	doc, err := html.Parse(strings.NewReader(htmlContent))
+	if err != nil {
+		return nil
+	}
 
-	matches := re.FindAllStringSubmatch(htmlContent, -1)
-	for _, match := range matches {
-		if len(match) > 1 {
-			text := stripHTMLTags(match[1])
-			text = strings.TrimSpace(text)
-			if text != "" {
-				results = append(results, text)
+	var results []string
+	var traverse func(*html.Node)
+	traverse = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			for _, attr := range n.Attr {
+				if strings.EqualFold(attr.Key, "class") {
+					classes := strings.Fields(attr.Val)
+					for _, cls := range classes {
+						if cls == className {
+							text := extractTextFromNode(n)
+							if text != "" {
+								results = append(results, text)
+							}
+							break
+						}
+					}
+					break
+				}
 			}
 		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			traverse(c)
+		}
 	}
+	traverse(doc)
 
 	return results
 }
 
-// ExtractTextByID 从 HTML 中提取指定 id 的标签文字内容
-// htmlContent: HTML 内容
-// id: 元素 ID
-// 返回匹配标签的文字内容（如果找到），否则返回空字符串
+// ExtractTextByID 使用 DOM 解析器提取指定 id 的标签文字内容。
 func ExtractTextByID(htmlContent, id string) string {
 	if htmlContent == "" || id == "" {
 		return ""
 	}
 
-	// 匹配包含指定 id 的标签
-	pattern := `<[^>]+id\s*=\s*["']` + regexp.QuoteMeta(id) + `["'][^>]*>(.*?)</[^>]+>`
-	re := regexp.MustCompile(`(?i)` + pattern)
-
-	match := re.FindStringSubmatch(htmlContent)
-	if len(match) > 1 {
-		text := stripHTMLTags(match[1])
-		return strings.TrimSpace(text)
+	doc, err := html.Parse(strings.NewReader(htmlContent))
+	if err != nil {
+		return ""
 	}
 
-	return ""
+	var result string
+	var traverse func(*html.Node)
+	traverse = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			for _, attr := range n.Attr {
+				if strings.EqualFold(attr.Key, "id") && attr.Val == id {
+					result = extractTextFromNode(n)
+					return
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			traverse(c)
+			if result != "" {
+				return
+			}
+		}
+	}
+	traverse(doc)
+
+	return result
 }
 
-// ExtractAllText 提取 HTML 中所有文字内容（去除所有 HTML 标签）
-// htmlContent: HTML 内容
-// 返回纯文本内容
+// ExtractAllText 提取 HTML 中所有文字内容（去除所有 HTML 标签）。
 func ExtractAllText(htmlContent string) string {
-	return stripHTMLTags(htmlContent)
+	if htmlContent == "" {
+		return ""
+	}
+
+	doc, err := html.Parse(strings.NewReader(htmlContent))
+	if err != nil {
+		return ""
+	}
+
+	var result strings.Builder
+	var traverse func(*html.Node)
+	traverse = func(n *html.Node) {
+		if n.Type == html.TextNode {
+			text := strings.TrimSpace(n.Data)
+			if text != "" {
+				if result.Len() > 0 {
+					result.WriteString(" ")
+				}
+				result.WriteString(text)
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			traverse(c)
+		}
+	}
+	traverse(doc)
+
+	return result.String()
 }
 
-// stripHTMLTags 去除 HTML 标签，只保留文字内容
-func stripHTMLTags(html string) string {
-	// 移除所有 HTML 标签
-	re := regexp.MustCompile(`<[^>]+>`)
-	text := re.ReplaceAllString(html, " ")
-
-	// 解码 HTML 实体（简单处理）
-	text = strings.ReplaceAll(text, "&nbsp;", " ")
-	text = strings.ReplaceAll(text, "&amp;", "&")
-	text = strings.ReplaceAll(text, "&lt;", "<")
-	text = strings.ReplaceAll(text, "&gt;", ">")
-	text = strings.ReplaceAll(text, "&quot;", "\"")
-	text = strings.ReplaceAll(text, "&#39;", "'")
-
-	// 压缩多个空格为单个空格
-	re = regexp.MustCompile(`\s+`)
-	text = re.ReplaceAllString(text, " ")
-
-	return text
+// extractTextFromNode 从节点及其子节点中提取所有文字内容
+func extractTextFromNode(n *html.Node) string {
+	var result strings.Builder
+	var traverse func(*html.Node)
+	traverse = func(node *html.Node) {
+		if node.Type == html.TextNode {
+			text := strings.TrimSpace(node.Data)
+			if text != "" {
+				if result.Len() > 0 {
+					result.WriteString(" ")
+				}
+				result.WriteString(text)
+			}
+		}
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			traverse(c)
+		}
+	}
+	traverse(n)
+	return strings.TrimSpace(result.String())
 }

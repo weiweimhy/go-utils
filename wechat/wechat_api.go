@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/bytedance/sonic"
-	"github.com/weiweimhy/go-utils/customUtils"
+	"github.com/weiweimhy/go-utils/httputil"
 	"github.com/weiweimhy/go-utils/logger"
 	"go.uber.org/zap"
 )
@@ -37,7 +37,7 @@ func GetSession(ctx context.Context, appid, secret, js_code string) (WeChatSessi
 	}
 
 	// 注意：此处直接使用 http.NewRequestWithContext 配合 DefaultHttpClient
-	rsp, err := customUtils.DefaultHttpClient.Do(req)
+	rsp, err := httputil.DefaultHttpClient.Do(req)
 	if err != nil {
 		return WeChatSession{}, fmt.Errorf("failed to request wechat api: %w", err)
 	}

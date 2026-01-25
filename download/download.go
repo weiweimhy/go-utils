@@ -1,4 +1,4 @@
-package customUtils
+package download
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/weiweimhy/go-utils/fsutil"
+	"github.com/weiweimhy/go-utils/httputil"
 	"github.com/weiweimhy/go-utils/logger"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -52,7 +54,7 @@ func NewDownloadManager(opts ...DMOption) *DownloadManager {
 	dm := &DownloadManager{
 		workers:  20,
 		chanSize: 100,
-		client:   DefaultHttpClient,
+		client:   httputil.DefaultHttpClient,
 	}
 	for _, opt := range opts {
 		opt(dm)
@@ -177,7 +179,7 @@ func downloadFile(ctx context.Context, client *http.Client, url string, path str
 		return fmt.Errorf("http error: %d", resp.StatusCode)
 	}
 
-	if err := CreateDir(path); err != nil {
+	if err := fsutil.CreateDir(path); err != nil {
 		return err
 	}
 

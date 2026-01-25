@@ -11,6 +11,7 @@ import (
 	"strings"
 )
 
+// Epub 表示一个 EPUB 电子书文档。
 type Epub struct {
 	reader     *zip.ReadCloser
 	entries    []*zipEntry
@@ -92,6 +93,7 @@ func (p *Epub) Close() error {
 	return nil
 }
 
+// Save 将修改后的内容保存到指定的 EPUB 文件。
 func (p *Epub) Save(outputPath string) error {
 	if err := p.flushOPF(); err != nil {
 		return err
@@ -136,6 +138,7 @@ func (p *Epub) Save(outputPath string) error {
 	return nil
 }
 
+// ApplyHTML 对 EPUB 中的所有 HTML 页面应用回调函数进行批量修改。
 func (p *Epub) ApplyHTML(fn func(name string, html string) (string, error)) (int, error) {
 	if fn == nil {
 		return 0, nil

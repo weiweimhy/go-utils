@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/bytedance/sonic"
-	"github.com/weiweimhy/go-utils/customUtils"
+	"github.com/weiweimhy/go-utils/fsutil"
 	"go.etcd.io/bbolt"
 )
 
@@ -16,7 +16,7 @@ type LocalDB struct {
 
 // Open 打开一个新的 BoltDB 实例。不再使用全局变量存储。
 func Open(path string, name string) (*LocalDB, error) {
-	if err := customUtils.CreateDir(path); err != nil {
+	if err := fsutil.CreateDir(path); err != nil {
 		return nil, err
 	}
 

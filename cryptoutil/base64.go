@@ -1,4 +1,4 @@
-package customUtils
+package cryptoutil
 
 import "encoding/base64"
 

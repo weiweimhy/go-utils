@@ -4,11 +4,11 @@
 
 ## 🚀 核心特性
 
-- **去单例化设计**：所有组件（Mongo, DB, OCR）均支持多实例并存。
+- **模块化设计**：按功能深度拆分（httputil, download, fsutil, etc.），结构清晰。
 - **全链路 Context**：原生支持生命周期管控，防止资源泄漏。
-- **Mock-Ready**：关键组件抽象为接口，方便业务层进行单元测试。
-- **内存优化**：Epub 模块采用流式处理，支持超大文件。
-- **安全第一**：锁定的 HTTP 客户端，内置合理的超时与连接池配置。
+- **Mock-Ready**：关键组件（Mongo, OCR）抽象为接口，方便业务层进行单元测试。
+- **内存优化**：Epub 模块采用流式/分块处理，支持超大文件。
+- **工业级安全**：锁定的 HTTP 客户端，内置合理的超时与连接池配置。
 
 ## 📦 安装
 
@@ -32,7 +32,6 @@ logger.Init(
     logger.WithFilename("./logs/service.log"),
 )
 
-// 2. 使用全局 Logger
 logger.L().Info("service started", zap.String("version", "1.0"))
 
 // 3. 函数跟踪 (Trace)
@@ -59,16 +58,16 @@ client, err := mongo.NewClient(ctx, mongo.Config{
 err = client.FindOne(ctx, "users", bson.M{"id": 1}, &user)
 ```
 
-### 3. 下载管理器 (customUtils)
+### 3. 下载管理器 (download)
 支持并发控制和级联取消。
 
 ```go
-import "github.com/weiweimhy/go-utils/customUtils"
+import "github.com/weiweimhy/go-utils/download"
 
 // 创建管理器
-dm := customUtils.NewDownloadManager(
-    customUtils.WithWorkers(10),
-    customUtils.WithDelay(100 * time.Millisecond),
+dm := download.NewDownloadManager(
+    download.WithWorkers(10),
+    download.WithDelay(100 * time.Millisecond),
 )
 
 // 启动

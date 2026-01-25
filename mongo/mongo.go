@@ -14,16 +14,25 @@ import (
 
 // IMongoClient 定义了数据库操作的标准接口，方便外部 Mock 测试。
 type IMongoClient interface {
+	// InsertOne 插入单个文档。
 	InsertOne(ctx context.Context, collectionName string, document interface{}) (*mongo.InsertOneResult, error)
+	// InsertMany 批量插入文档。
 	InsertMany(ctx context.Context, collectionName string, documents []interface{}) (*mongo.InsertManyResult, error)
+	// DeleteOne 删除单个匹配的文档。
 	DeleteOne(ctx context.Context, collectionName string, filter interface{}) (*mongo.DeleteResult, error)
+	// UpdateOne 更新单个匹配的文档。
 	UpdateOne(ctx context.Context, collectionName string, filter interface{}, update interface{}) (*mongo.UpdateResult, error)
+	// FindOne 查询单个文档。
 	FindOne(ctx context.Context, collectionName string, filter interface{}, result interface{}) error
+	// FindMany 查询多个文档。
 	FindMany(ctx context.Context, collectionName string, filter interface{}, results interface{}) error
+	// Count 统计文档数量。
 	Count(ctx context.Context, collectionName string, filter interface{}) (int64, error)
+	// Disconnect 关闭数据库连接。
 	Disconnect(ctx context.Context) error
 }
 
+// Config 包含 MongoDB 的连接配置。
 type Config struct {
 	ConnectTimeout time.Duration `yaml:"connect_timeout"`
 	OPTimeout      time.Duration `yaml:"op_timeout"`
