@@ -3,17 +3,26 @@ package mongo
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.uber.org/zap"
 
-	"invoiceClient/pkg/logger"
-
-	"sync"
+	"github.com/weiweimhy/go-utils/logger"
 )
+
+// IMongoClient 定义了数据库操作的标准接口，方便外部 Mock 测试。
+type IMongoClient interface {
+	InsertOne(ctx context.Context, collectionName string, document interface{}) (*mongo.InsertOneResult, error)
+	InsertMany(ctx context.Context, collectionName string, documents []interface{}) (*mongo.InsertManyResult, error)
+	DeleteOne(ctx context.Context, collectionName string, filter interface{}) (*mongo.DeleteResult, error)
+	UpdateOne(ctx context.Context, collectionName string, filter interface{}, update interface{}) (*mongo.UpdateResult, error)
+	FindOne(ctx context.Context, collectionName string, filter interface{}, result interface{}) error
+	FindMany(ctx context.Context, collectionName string, filter interface{}, results interface{}) error
+	Count(ctx context.Context, collectionName string, filter interface{}) (int64, error)
+	Disconnect(ctx context.Context) error
+}
 
 type Config struct {
 	ConnectTimeout time.Duration `yaml:"connect_timeout"`
@@ -25,282 +34,98 @@ type Config struct {
 	DatabaseName   string        `yaml:"database_name"`
 }
 
-type DB struct {
+type clientImpl struct {
 	*mongo.Database
-	Config
+	cfg Config
 }
 
-var (
-	database *DB
-	once     sync.Once
-)
+// NewClient 创建并返回满足 IMongoClient 接口的数据库实例。
+func NewClient(ctx context.Context, config Config) (IMongoClient, error) {
+	defer logger.Trace(logger.L(), "mongo.NewClient")()
 
-func GetMongoDB(config Config) *DB {
-	defer logger.Trace(zap.L(), "mongo.GetMongoDB")()
+	opts := options.Client().
+		SetConnectTimeout(config.ConnectTimeout).
+		ApplyURI(config.Uri)
 
-	once.Do(func() {
-		opts := options.Client()
-		opts.SetConnectTimeout(config.ConnectTimeout)
-		opts.ApplyURI(config.Uri)
-
-		if config.AuthName != "" && config.AuthPass != "" {
-			credential := options.Credential{
-				Username:   config.AuthName,
-				Password:   config.AuthPass,
-				AuthSource: config.AuthDatabase,
-			}
-			opts.SetAuth(credential)
-		}
-
-		client, err := mongo.Connect(opts)
-		if err != nil {
-			zap.L().Fatal("failed to connect to MongoDB",
-				zap.String("uri", config.Uri),
-				zap.Error(err),
-			)
-			os.Exit(1)
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), config.ConnectTimeout)
-		defer cancel()
-
-		err = client.Ping(ctx, nil)
-		if err != nil {
-			zap.L().Fatal("failed to ping MongoDB",
-				zap.String("uri", config.Uri),
-				zap.Error(err),
-			)
-			os.Exit(1)
-		}
-
-		database = &DB{
-			client.Database(config.DatabaseName),
-			config,
-		}
-	})
-
-	return database
-}
-
-func InsertOne[T any](db *DB, collectionName string, document T) (*mongo.InsertOneResult, error) {
-	defer logger.Trace(zap.L(), "mongo.InsertOne", zap.String("collection", collectionName))()
-
-	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
+	if config.AuthName != "" && config.AuthPass != "" {
+		opts.SetAuth(options.Credential{
+			Username:   config.AuthName,
+			Password:   config.AuthPass,
+			AuthSource: config.AuthDatabase,
+		})
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
+	client, err := mongo.Connect(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to MongoDB: %w", err)
+	}
+
+	pingCtx, cancel := context.WithTimeout(ctx, config.ConnectTimeout)
 	defer cancel()
 
-	collection := db.Collection(collectionName)
-	result, err := collection.InsertOne(ctx, document)
-	if err != nil {
-		return nil, fmt.Errorf("insert one failed: %w", err)
+	if err = client.Ping(pingCtx, nil); err != nil {
+		return nil, fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
-	return result, nil
+
+	return &clientImpl{
+		Database: client.Database(config.DatabaseName),
+		cfg:      config,
+	}, nil
 }
 
-func InsertMany[T any](db *DB, collectionName string, documents []T) (*mongo.InsertManyResult, error) {
-	defer logger.Trace(zap.L(), "mongo.InsertMany", zap.String("collection", collectionName), zap.Int("count", len(documents)))()
-
-	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
-	}
-
-	if len(documents) == 0 {
-		return nil, logger.InvalidParam(zap.L(), "documents is empty", zap.String("param", "documents"))
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
+func (c *clientImpl) InsertOne(ctx context.Context, collectionName string, document interface{}) (*mongo.InsertOneResult, error) {
+	defer logger.Trace(logger.L(), "mongo.InsertOne", zap.String("collection", collectionName))()
+	opCtx, cancel := context.WithTimeout(ctx, c.cfg.OPTimeout)
 	defer cancel()
-
-	collection := db.Collection(collectionName)
-
-	docs := make([]interface{}, len(documents))
-	for index, doc := range documents {
-		docs[index] = doc
-	}
-	result, err := collection.InsertMany(ctx, docs)
-	if err != nil {
-		return nil, fmt.Errorf("insert many failed: %w", err)
-	}
-	return result, nil
+	return c.Collection(collectionName).InsertOne(opCtx, document)
 }
 
-func DeleteOne(db *DB, collectionName string, filter interface{}) (*mongo.DeleteResult, error) {
-	defer logger.Trace(zap.L(), "mongo.DeleteOne", zap.String("collection", collectionName))()
-
-	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
+func (c *clientImpl) InsertMany(ctx context.Context, collectionName string, documents []interface{}) (*mongo.InsertManyResult, error) {
+	defer logger.Trace(logger.L(), "mongo.InsertMany", zap.String("collection", collectionName), zap.Int("count", len(documents)))()
+	opCtx, cancel := context.WithTimeout(ctx, c.cfg.OPTimeout)
 	defer cancel()
-
-	collection := db.Collection(collectionName)
-	result, err := collection.DeleteOne(ctx, filter)
-	if err != nil {
-		return nil, fmt.Errorf("delete one failed: %w", err)
-	}
-	return result, nil
+	return c.Collection(collectionName).InsertMany(opCtx, documents)
 }
 
-func DeleteMany(db *DB, collectionName string, filter interface{}) (*mongo.DeleteResult, error) {
-	defer logger.Trace(zap.L(), "mongo.DeleteMany", zap.String("collection", collectionName))()
-
-	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
+func (c *clientImpl) DeleteOne(ctx context.Context, collectionName string, filter interface{}) (*mongo.DeleteResult, error) {
+	defer logger.Trace(logger.L(), "mongo.DeleteOne", zap.String("collection", collectionName))()
+	opCtx, cancel := context.WithTimeout(ctx, c.cfg.OPTimeout)
 	defer cancel()
-
-	collection := db.Collection(collectionName)
-	result, err := collection.DeleteMany(ctx, filter)
-	if err != nil {
-		return nil, fmt.Errorf("delete many failed: %w", err)
-	}
-	return result, nil
+	return c.Collection(collectionName).DeleteOne(opCtx, filter)
 }
 
-func UpdateOne[T any](db *DB, collectionName string, filter interface{}, update T) (*mongo.UpdateResult, error) {
-	defer logger.Trace(zap.L(), "mongo.UpdateOne", zap.String("collection", collectionName))()
-
-	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
+func (c *clientImpl) UpdateOne(ctx context.Context, collectionName string, filter interface{}, update interface{}) (*mongo.UpdateResult, error) {
+	defer logger.Trace(logger.L(), "mongo.UpdateOne", zap.String("collection", collectionName))()
+	opCtx, cancel := context.WithTimeout(ctx, c.cfg.OPTimeout)
 	defer cancel()
-
-	collection := db.Collection(collectionName)
-	result, err := collection.UpdateOne(ctx, filter, update)
-	if err != nil {
-		return nil, fmt.Errorf("update one failed: %w", err)
-	}
-	return result, nil
+	return c.Collection(collectionName).UpdateOne(opCtx, filter, update)
 }
 
-func UpdateMany[T any](db *DB, collectionName string, filter interface{}, updates []T) (*mongo.UpdateResult, error) {
-	defer logger.Trace(zap.L(), "mongo.UpdateMany", zap.String("collection", collectionName), zap.Int("count", len(updates)))()
-
-	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
+func (c *clientImpl) FindOne(ctx context.Context, collectionName string, filter interface{}, result interface{}) error {
+	defer logger.Trace(logger.L(), "mongo.FindOne", zap.String("collection", collectionName))()
+	opCtx, cancel := context.WithTimeout(ctx, c.cfg.OPTimeout)
 	defer cancel()
-
-	collection := db.Collection(collectionName)
-
-	var updateDocs = make([]interface{}, len(updates))
-	for index, update := range updates {
-		updateDocs[index] = update
-	}
-	result, err := collection.UpdateMany(ctx, filter, updateDocs)
-	if err != nil {
-		return nil, fmt.Errorf("update many failed: %w", err)
-	}
-	return result, nil
+	return c.Collection(collectionName).FindOne(opCtx, filter).Decode(result)
 }
 
-func ReplaceOne[T any](db *DB, collectionName string, filter interface{}, update T) (*mongo.UpdateResult, error) {
-	defer logger.Trace(zap.L(), "mongo.ReplaceOne", zap.String("collection", collectionName))()
-
-	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
+func (c *clientImpl) FindMany(ctx context.Context, collectionName string, filter interface{}, results interface{}) error {
+	defer logger.Trace(logger.L(), "mongo.FindMany", zap.String("collection", collectionName))()
+	opCtx, cancel := context.WithTimeout(ctx, c.cfg.OPTimeout)
 	defer cancel()
-
-	collection := db.Collection(collectionName)
-	result, err := collection.ReplaceOne(ctx, filter, update)
+	cur, err := c.Collection(collectionName).Find(opCtx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("replace one failed: %w", err)
+		return err
 	}
-	return result, nil
+	return cur.All(opCtx, results)
 }
 
-func FindOne[T any](db *DB, collectionName string, filter interface{}) (*T, error) {
-	defer logger.Trace(zap.L(), "mongo.FindOne", zap.String("collection", collectionName))()
-
-	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
+func (c *clientImpl) Count(ctx context.Context, collectionName string, filter interface{}) (int64, error) {
+	defer logger.Trace(logger.L(), "mongo.Count", zap.String("collection", collectionName))()
+	opCtx, cancel := context.WithTimeout(ctx, c.cfg.OPTimeout)
 	defer cancel()
-
-	collection := db.Collection(collectionName)
-	singleResult := collection.FindOne(ctx, filter)
-
-	var result T
-	err := singleResult.Decode(&result)
-	if err != nil {
-		return nil, fmt.Errorf("find one decode failed: %w", err)
-	}
-
-	return &result, nil
+	return c.Collection(collectionName).CountDocuments(opCtx, filter)
 }
 
-func FindMany[T any](db *DB, collectionName string, filter interface{}) ([]*T, error) {
-	defer logger.Trace(zap.L(), "mongo.FindMany", zap.String("collection", collectionName))()
-
-	if db == nil {
-		return nil, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
-	defer cancel()
-
-	collection := db.Collection(collectionName)
-	cur, err := collection.Find(ctx, filter)
-	if err != nil {
-		return nil, fmt.Errorf("find many failed: %w", err)
-	}
-	defer func(cur *mongo.Cursor, ctx context.Context) {
-		err := cur.Close(ctx)
-		if err != nil {
-			zap.L().Warn("failed to close cursor",
-				zap.String("collection", collectionName),
-				zap.Error(err),
-			)
-		}
-	}(cur, ctx)
-
-	var result []*T
-	for cur.Next(ctx) {
-		var elem T
-		err := cur.Decode(&elem)
-		if err != nil {
-			return nil, fmt.Errorf("find many decode failed: %w", err)
-		}
-		result = append(result, &elem)
-	}
-
-	if err := cur.Err(); err != nil {
-		return nil, fmt.Errorf("find many cursor error: %w", err)
-	}
-
-	return result, nil
-}
-
-func Count(db *DB, collectionName string, filter interface{}) (int64, error) {
-	defer logger.Trace(zap.L(), "mongo.Count", zap.String("collection", collectionName))()
-
-	if db == nil {
-		return 0, logger.InvalidParam(zap.L(), "database is nil", zap.String("param", "db"))
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), db.OPTimeout)
-	defer cancel()
-
-	collection := db.Collection(collectionName)
-	count, err := collection.CountDocuments(ctx, filter)
-	if err != nil {
-		return 0, fmt.Errorf("count documents failed: %w", err)
-	}
-
-	return count, nil
+func (c *clientImpl) Disconnect(ctx context.Context) error {
+	return c.Client().Disconnect(ctx)
 }

@@ -19,51 +19,94 @@ var (
 	ctxKey = struct{}{}
 )
 
-func InitProduction() {
+// Options 包含 Logger 的所有配置项
+type Options struct {
+	Filename    string
+	Level       zapcore.Level
+	MaxMB       int
+	MaxBackups  int
+	MaxAge      int
+	Compress    bool
+	Sampling    *zap.SamplingConfig
+	Development bool
+}
+
+type Option func(*Options)
+
+// DefaultOptions 默认设置
+func DefaultOptions() *Options {
+	return &Options{
+		Filename:    "./logs/app.log",
+		Level:       zap.InfoLevel,
+		MaxMB:       100,
+		MaxBackups:  10,
+		MaxAge:      30,
+		Compress:    true,
+		Development: false,
+		Sampling: &zap.SamplingConfig{
+			Initial:    100,
+			Thereafter: 100,
+		},
+	}
+}
+
+func WithFilename(f string) Option     { return func(o *Options) { o.Filename = f } }
+func WithLevel(l zapcore.Level) Option { return func(o *Options) { o.Level = l } }
+func WithDevelopment(d bool) Option    { return func(o *Options) { o.Development = d } }
+
+// Init 使用 Functional Options 初始化全局 Logger
+func Init(opts ...Option) {
 	once.Do(func() {
+		o := DefaultOptions()
+		for _, opt := range opts {
+			opt(o)
+		}
+
 		writeSyncer := zapcore.AddSync(&lumberjack.Logger{
-			Filename:   "./logs/app.log",
-			MaxSize:    1, // MB
-			MaxBackups: 5,
-			MaxAge:     30, // days
-			Compress:   true,
+			Filename:   o.Filename,
+			MaxSize:    o.MaxMB,
+			MaxBackups: o.MaxBackups,
+			MaxAge:     o.MaxAge,
+			Compress:   o.Compress,
 			LocalTime:  true,
 		})
 
-		encoderConfig := zapcore.EncoderConfig{
-			TimeKey:        "ts",
-			LevelKey:       "level",
-			NameKey:        "logger",
-			CallerKey:      "caller",
-			MessageKey:     "msg",
-			StacktraceKey:  "stacktrace",
-			LineEnding:     zapcore.DefaultLineEnding,
-			EncodeLevel:    zapcore.CapitalLevelEncoder, // INFO ERROR
-			EncodeTime:     zapcore.ISO8601TimeEncoder,  // 2025-12-01T10:20:30.123Z
-			EncodeDuration: zapcore.StringDurationEncoder,
-			EncodeCaller:   zapcore.ShortCallerEncoder,
+		var encoderConfig zapcore.EncoderConfig
+		if o.Development {
+			encoderConfig = zap.NewDevelopmentEncoderConfig()
+		} else {
+			encoderConfig = zap.NewProductionEncoderConfig()
+			encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 		}
 
 		core := zapcore.NewCore(
 			zapcore.NewJSONEncoder(encoderConfig),
 			zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), writeSyncer),
-			zap.NewAtomicLevelAt(zap.InfoLevel),
+			zap.NewAtomicLevelAt(o.Level),
 		)
 
-		logger := zap.New(
-			core,
+		zapOpts := []zap.Option{
 			zap.AddCaller(),
 			zap.AddStacktrace(zap.ErrorLevel),
-			// 可选：高并发防刷屏采样
-			// zap.WrapCore(func(c zapcore.Core) zapcore.Core {
-			// 	return zapcore.NewSamplerWithOptions(c, time.Second, 100, 100)
-			// }),
-		)
+		}
 
+		if o.Sampling != nil {
+			zapOpts = append(zapOpts, zap.WrapCore(func(c zapcore.Core) zapcore.Core {
+				return zapcore.NewSamplerWithOptions(c, time.Second, o.Sampling.Initial, o.Sampling.Thereafter)
+			}))
+		}
+
+		logger := zap.New(core, zapOpts...)
 		zap.ReplaceGlobals(logger)
 	})
 }
 
+// L 返回全局共享的 Logger 实例
+func L() *zap.Logger {
+	return zap.L()
+}
+
+// FromContext 从 context 获取 Logger，由于重构了 Global 模式，此处建议作为首选
 func FromContext(ctx context.Context, fields ...zap.Field) *zap.Logger {
 	if ctx == nil {
 		return zap.L().With(fields...)
@@ -81,38 +124,12 @@ func ToContext(ctx context.Context, l *zap.Logger) context.Context {
 	return context.WithValue(ctx, ctxKey, l)
 }
 
-type CtxLogger struct {
-	ctx context.Context
-	Log *zap.Logger
-}
-
-// NewCtxLogger 基于给定 ctx 获取/创建 logger，并将其写回新的 ctx
-func NewCtxLogger(ctx context.Context, fields ...zap.Field) CtxLogger {
-	log := FromContext(ctx, fields...)
-	newCtx := ToContext(ctx, log)
-	return CtxLogger{
-		ctx: newCtx,
-		Log: log,
-	}
-}
-
-// With 为当前 CtxLogger 附加字段，并返回新的 CtxLogger（同时更新 ctx 中的 logger）
-func (cl CtxLogger) With(fields ...zap.Field) CtxLogger {
-	log := cl.Log.With(fields...)
-	ctx := ToContext(cl.ctx, log)
-	return CtxLogger{
-		ctx: ctx,
-		Log: log,
-	}
-}
-
-// Trace 自动记录函数进入/退出 + 耗时，生产必备
+// Trace 自动记录函数耗时与 Panic 捕获
 func Trace(log *zap.Logger, funcName string, fields ...zap.Field) func() {
 	start := time.Now()
 	log.Debug("→ function entry", append(fields, zap.String("func", funcName))...)
 
 	return func() {
-		// 如果有 panic，也能捕获
 		if r := recover(); r != nil {
 			log.Error("function panic",
 				zap.String("func", funcName),
@@ -131,29 +148,26 @@ func Trace(log *zap.Logger, funcName string, fields ...zap.Field) func() {
 	}
 }
 
-// InvalidParam 统一的参数错误日志（所有项目都长这样）
+// InvalidParam 统一参数错误处理
 func InvalidParam(log *zap.Logger, msg string, fields ...zap.Field) error {
 	log.Error("invalid parameter",
 		append(fields,
 			zap.String("error", "invalid_param"),
 			zap.String("func", getCallerFuncName()),
-			zap.Stack("stack"), // 方便一键跳到调用处
+			zap.Stack("stack"),
 		)...,
 	)
 	return fmt.Errorf("invalid param: %s", msg)
 }
 
-var funcNameCache sync.Map // 全局缓存，命中率 99.99%
+var funcNameCache sync.Map
 
-// 获取调用者函数名（短名 + 行号），带缓存，性能 < 30ns
 func getCallerFuncName() string {
-	pc, _, _, ok := runtime.Caller(2) // 2 层：InvalidParam -> 调用方
+	pc, _, _, ok := runtime.Caller(2)
 	if !ok {
 		return "unknown"
 	}
-
-	key := pc
-	if name, ok := funcNameCache.Load(key); ok {
+	if name, ok := funcNameCache.Load(pc); ok {
 		return name.(string)
 	}
 
@@ -163,19 +177,14 @@ func getCallerFuncName() string {
 	}
 
 	fullName := f.Name()
-	// 取最后两段：(*Client).Start:45
 	parts := strings.Split(fullName, ".")
 	short := parts[len(parts)-1]
-	if strings.HasPrefix(short, "(") {
-		// 处理 receiver
-		if len(parts) >= 2 {
-			short = parts[len(parts)-2] + "." + short
-		}
+	if strings.HasPrefix(short, "(") && len(parts) >= 2 {
+		short = parts[len(parts)-2] + "." + short
 	}
 
 	_, line := f.FileLine(pc)
 	result := fmt.Sprintf("%s:%d", short, line)
-
-	funcNameCache.Store(key, result)
+	funcNameCache.Store(pc, result)
 	return result
 }

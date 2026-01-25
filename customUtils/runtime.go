@@ -1,4 +1,4 @@
-package Env
+package customUtils
 
 import (
 	"fmt"
