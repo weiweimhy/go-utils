@@ -9,7 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.uber.org/zap"
 
-	"github.com/weiweimhy/go-utils/logger"
+	"github.com/weiweimhy/go-utils/v3/logger"
 )
 
 // IMongoClient 定义了数据库操作的标准接口，方便外部 Mock 测试。

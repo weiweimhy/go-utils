@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/weiweimhy/go-utils/cryptoutil"
+	"github.com/weiweimhy/go-utils/v3/cryptoutil"
 )
 
 func IsFileExist(path string) bool {

@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	"github.com/bytedance/sonic"
-	"github.com/weiweimhy/go-utils/httputil"
-	"github.com/weiweimhy/go-utils/logger"
+	"github.com/weiweimhy/go-utils/v3/httputil"
+	"github.com/weiweimhy/go-utils/v3/logger"
 	"go.uber.org/zap"
 )
 

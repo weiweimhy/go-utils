@@ -7,7 +7,7 @@ import (
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 	ocr "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ocr/v20181119"
-	"github.com/weiweimhy/go-utils/logger"
+	"github.com/weiweimhy/go-utils/v3/logger"
 )
 
 // IOCRClient 定义了腾讯 OCR 操作的标准接口。

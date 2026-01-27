@@ -57,7 +57,7 @@ go mod tidy
 
 ```go
 import (
-    "github.com/weiweimhy/go-utils/logger"
+    "github.com/weiweimhy/go-utils/v3/logger"
     "go.uber.org/zap"
 )
 
@@ -84,7 +84,7 @@ func main() {
 import (
     "context"
     "time"
-    "github.com/weiweimhy/go-utils/task"
+    "github.com/weiweimhy/go-utils/v3/task"
 )
 
 func main() {
@@ -117,7 +117,7 @@ func main() {
 ```go
 import (
     "context"
-    "github.com/weiweimhy/go-utils/download"
+    "github.com/weiweimhy/go-utils/v3/download"
 )
 
 func main() {
@@ -138,7 +138,7 @@ func main() {
 ```go
 import (
     "context"
-    "github.com/weiweimhy/go-utils/httputil"
+    "github.com/weiweimhy/go-utils/v3/httputil"
 )
 
 func main() {
@@ -155,7 +155,7 @@ func main() {
 ### 5. 文件操作 (fsutil)
 
 ```go
-import "github.com/weiweimhy/go-utils/fsutil"
+import "github.com/weiweimhy/go-utils/v3/fsutil"
 
 // 保存文件（自动创建父目录）
 err := fsutil.SaveToFile("./data/output/result.json", data)
@@ -173,7 +173,7 @@ base64Str, err := fsutil.GetFileBase64("./image.png")
 import (
     "context"
     "time"
-    "github.com/weiweimhy/go-utils/mongo"
+    "github.com/weiweimhy/go-utils/v3/mongo"
 )
 
 func main() {
@@ -198,7 +198,7 @@ func main() {
 ### 7. 本地 KV 存储 (localdb)
 
 ```go
-import "github.com/weiweimhy/go-utils/localdb"
+import "github.com/weiweimhy/go-utils/v3/localdb"
 
 // 打开数据库
 db, err := localdb.Open("./data", "cache.db")
@@ -219,7 +219,7 @@ db.GetJSON("users", "user:1", &user)
 ### 8. HTML 解析 (htmlutil)
 
 ```go
-import "github.com/weiweimhy/go-utils/htmlutil"
+import "github.com/weiweimhy/go-utils/v3/htmlutil"
 
 html := `<div class="content"><p>Hello</p><p>World</p></div>`
 
@@ -240,7 +240,7 @@ allText, err := htmlutil.ExtractAllText(html)
 ### 9. 加密工具 (cryptoutil)
 
 ```go
-import "github.com/weiweimhy/go-utils/cryptoutil"
+import "github.com/weiweimhy/go-utils/v3/cryptoutil"
 
 // SHA256 哈希
 hash := cryptoutil.StringToHash("hello")      // 完整 64 字符
@@ -255,7 +255,7 @@ encoded := cryptoutil.GetBase64FromBytes(data)
 ```go
 import (
     "errors"
-    "github.com/weiweimhy/go-utils/errs"
+    "github.com/weiweimhy/go-utils/v3/errs"
 )
 
 // 使用预定义错误

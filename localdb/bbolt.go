@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/bytedance/sonic"
-	"github.com/weiweimhy/go-utils/fsutil"
+	"github.com/weiweimhy/go-utils/v3/fsutil"
 	"go.etcd.io/bbolt"
 )
 

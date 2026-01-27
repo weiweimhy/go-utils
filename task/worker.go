@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/weiweimhy/go-utils/logger"
+	"github.com/weiweimhy/go-utils/v3/logger"
 	"go.uber.org/zap"
 )
 

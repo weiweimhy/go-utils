@@ -10,11 +10,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/weiweimhy/go-utils/errs"
-	"github.com/weiweimhy/go-utils/fsutil"
-	"github.com/weiweimhy/go-utils/httputil"
-	"github.com/weiweimhy/go-utils/logger"
-	"github.com/weiweimhy/go-utils/task"
+	"github.com/weiweimhy/go-utils/v3/errs"
+	"github.com/weiweimhy/go-utils/v3/fsutil"
+	"github.com/weiweimhy/go-utils/v3/httputil"
+	"github.com/weiweimhy/go-utils/v3/logger"
+	"github.com/weiweimhy/go-utils/v3/task"
 	"go.uber.org/zap"
 )
 

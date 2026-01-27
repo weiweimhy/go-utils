@@ -7,7 +7,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
-	"github.com/weiweimhy/go-utils/logger"
+	"github.com/weiweimhy/go-utils/v3/logger"
 )
 
 // MockClient 实现了 IMongoClient 接口，用于测试。

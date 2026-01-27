@@ -1,4 +1,4 @@
-module github.com/weiweimhy/go-utils
+module github.com/weiweimhy/go-utils/v3
 
 go 1.24.0
 
