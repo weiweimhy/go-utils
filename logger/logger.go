@@ -133,6 +133,66 @@ func ToContext(ctx context.Context, l *zap.Logger) context.Context {
 	return context.WithValue(ctx, ctxKey, l)
 }
 
+// CtxLogger 封装 Context 和 Logger，方便在函数间传递
+type CtxLogger struct {
+	Ctx context.Context
+	Log *zap.Logger
+}
+
+// NewCtxLogger 基于给定 Ctx 获取/创建 logger，并将其写回新的 Ctx
+func NewCtxLogger(ctx context.Context, fields ...zap.Field) CtxLogger {
+	log := FromContext(ctx, fields...)
+	newCtx := ToContext(ctx, log)
+	return CtxLogger{
+		Ctx: newCtx,
+		Log: log,
+	}
+}
+
+// With 为当前 CtxLogger 附加字段，并返回新的 CtxLogger（同时更新 Ctx 中的 logger）
+func (cl CtxLogger) With(fields ...zap.Field) CtxLogger {
+	log := cl.Log.With(fields...)
+	ctx := ToContext(cl.Ctx, log)
+	return CtxLogger{
+		Ctx: ctx,
+		Log: log,
+	}
+}
+
+// InitDevelopment 开发环境快捷初始化，输出彩色日志到控制台
+func InitDevelopment() {
+	once.Do(func() {
+		encoderConfig := zapcore.EncoderConfig{
+			TimeKey:        "ts",
+			LevelKey:       "level",
+			NameKey:        "logger",
+			CallerKey:      "caller",
+			MessageKey:     "msg",
+			StacktraceKey:  "stacktrace",
+			LineEnding:     zapcore.DefaultLineEnding,
+			EncodeLevel:    zapcore.CapitalColorLevelEncoder,
+			EncodeTime:     zapcore.TimeEncoderOfLayout("15:04:05.000"),
+			EncodeDuration: zapcore.StringDurationEncoder,
+			EncodeCaller:   zapcore.ShortCallerEncoder,
+		}
+
+		core := zapcore.NewCore(
+			zapcore.NewConsoleEncoder(encoderConfig),
+			zapcore.AddSync(os.Stdout),
+			zap.NewAtomicLevelAt(zap.DebugLevel),
+		)
+
+		logger := zap.New(
+			core,
+			zap.AddCaller(),
+			zap.AddStacktrace(zap.ErrorLevel),
+			zap.Development(),
+		)
+
+		zap.ReplaceGlobals(logger)
+	})
+}
+
 // Trace 自动记录函数耗时与 Panic 捕获
 func Trace(log *zap.Logger, funcName string, fields ...zap.Field) func() {
 	start := time.Now()
