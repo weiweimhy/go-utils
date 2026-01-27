@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	once   sync.Once
-	ctxKey = struct{}{}
+	once        sync.Once
+	ctxKey      = struct{}{}
+	initialized bool // 标记是否已初始化，用于检测重复初始化
 )
 
 // Options 包含 Logger 的所有配置项
@@ -64,8 +65,14 @@ func WithSampler(initial, thereafter int) Option {
 }
 
 // Init 使用 Functional Options 初始化全局 Logger
+// 注意：Init 和 InitDevelopment 只有第一次调用会生效，后续调用会打印警告
 func Init(opts ...Option) {
+	if initialized {
+		fmt.Fprintln(os.Stderr, "logger: Init called but logger already initialized, ignoring")
+		return
+	}
 	once.Do(func() {
+		initialized = true
 		o := DefaultOptions()
 		for _, opt := range opts {
 			opt(o)
@@ -160,8 +167,14 @@ func (cl CtxLogger) With(fields ...zap.Field) CtxLogger {
 }
 
 // InitDevelopment 开发环境快捷初始化，输出彩色日志到控制台
+// 注意：Init 和 InitDevelopment 只有第一次调用会生效，后续调用会打印警告
 func InitDevelopment() {
+	if initialized {
+		fmt.Fprintln(os.Stderr, "logger: InitDevelopment called but logger already initialized, ignoring")
+		return
+	}
 	once.Do(func() {
+		initialized = true
 		encoderConfig := zapcore.EncoderConfig{
 			TimeKey:        "ts",
 			LevelKey:       "level",

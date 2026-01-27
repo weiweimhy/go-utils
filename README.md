@@ -17,12 +17,16 @@ go get github.com/weiweimhy/go-utils
 ```
 
 ### 🆙 升级库
+
 要升级到最新版本，请运行：
+
 ```bash
 go get -u github.com/weiweimhy/go-utils
 go mod tidy
 ```
+
 若需升级到特定版本：
+
 ```bash
 go get github.com/weiweimhy/go-utils@v3.1.2
 ```
@@ -33,13 +37,17 @@ go get github.com/weiweimhy/go-utils@v3.1.2
 
 | 包名 | 核心功能 | 适用场景 |
 | :--- | :--- | :--- |
-| `logger` | 结构化日志、Trace 追踪 | 全局日志记录、函数耗时分析 |
+| `logger` | 结构化日志、Trace 追踪、CtxLogger | 全局日志记录、函数耗时分析 |
 | `httputil` | 安全 HTTP 客户端、GitHub 接口 | 远程 API 调用 |
 | `fsutil` | 增强型文件/目录操作 | 读写文件、自动创建父目录 |
 | `download` | 高并发下载管理器 | 批量文件下载、并发受控 |
+| `task` | 通用工作池、任务分组 | 并发任务管理、goroutine 复用 |
 | `cryptoutil` | 常用 Hash & Base64 | 数据校验、编码转换 |
 | `mongo` | 接口化 MongoDB 客户端 | 数据库 CRUD |
+| `localdb` | BBolt 本地键值存储 | 轻量本地存储 |
+| `htmlutil` | HTML DOM 解析提取 | 网页内容抓取 |
 | `epub` | 高性能 EPUB 解析修改 | 电子书处理 |
+| `tencentocr` | 腾讯 OCR 服务封装 | 发票识别、文字提取 |
 | `errs` | 统一错误映射 | 业务错误码规范化 |
 
 ---
@@ -47,6 +55,7 @@ go get github.com/weiweimhy/go-utils@v3.1.2
 ## 📖 快速上手
 
 ### 1. 高性能日志 (logger)
+
 ```go
 import "github.com/weiweimhy/go-utils/logger"
 
@@ -79,7 +88,30 @@ var user struct{ Name string }
 client.FindOne(ctx, "users", bson.M{"id": 1}, &user)
 ```
 
-### 3. 高并发下载 (download)
+### 3. 通用工作池 (task)
+```go
+import "github.com/weiweimhy/go-utils/task"
+
+// 创建工作池：10 个 worker，缓冲区 100
+pool := task.NewWorkerPool(ctx, 10, 100)
+defer pool.Close(5 * time.Second)
+
+// 提交任务
+pool.SubmitFunc(func(ctx context.Context) {
+    // 执行业务逻辑
+})
+
+// 使用任务组等待一批任务完成
+group := pool.NewGroup()
+for _, item := range items {
+    group.SubmitFunc(func(ctx context.Context) {
+        process(item)
+    })
+}
+group.Wait()
+```
+
+### 4. 高并发下载 (download)
 ```go
 import "github.com/weiweimhy/go-utils/download"
 
@@ -91,7 +123,7 @@ dm.Add("https://example.com/a.jpg", "./data/a.jpg")
 dm.Wait()
 ```
 
-### 4. 工具包示例 (fsutil/cryptoutil)
+### 5. 工具包示例 (fsutil/cryptoutil)
 ```go
 import (
     "github.com/weiweimhy/go-utils/fsutil"
@@ -102,7 +134,7 @@ import (
 fsutil.SaveToFile("./out/config.json", data)
 
 // 快速 SHA256
-hash := cryptoutil.SHA256String("hello")
+hash := cryptoutil.StringToHash("hello")
 ```
 
 ---

@@ -43,14 +43,31 @@ type Config struct {
 	DatabaseName   string        `yaml:"database_name"`
 }
 
+// DefaultConfig 返回带有合理默认值的配置
+func DefaultConfig() Config {
+	return Config{
+		ConnectTimeout: 10 * time.Second,
+		OPTimeout:      5 * time.Second,
+	}
+}
+
 type clientImpl struct {
 	*mongo.Database
 	cfg Config
 }
 
 // NewClient 创建并返回满足 IMongoClient 接口的数据库实例。
+// 如果 config.ConnectTimeout 或 config.OPTimeout 为零，将使用默认值。
 func NewClient(ctx context.Context, config Config) (IMongoClient, error) {
 	defer logger.Trace(logger.L(), "mongo.NewClient")()
+
+	// 应用默认值
+	if config.ConnectTimeout == 0 {
+		config.ConnectTimeout = 10 * time.Second
+	}
+	if config.OPTimeout == 0 {
+		config.OPTimeout = 5 * time.Second
+	}
 
 	opts := options.Client().
 		SetConnectTimeout(config.ConnectTimeout).

@@ -1,6 +1,7 @@
-package htmlUtils
+package htmlutil
 
 import (
+	"fmt"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -8,14 +9,17 @@ import (
 
 // ExtractTextByTag 使用 DOM 解析器从 HTML 中提取指定标签的文字内容。
 // tagName 为标签名称，如 "p", "h1", "div"（不含尖括号）。
-func ExtractTextByTag(htmlContent, tagName string) []string {
-	if htmlContent == "" || tagName == "" {
-		return nil
+func ExtractTextByTag(htmlContent, tagName string) ([]string, error) {
+	if htmlContent == "" {
+		return nil, nil
+	}
+	if tagName == "" {
+		return nil, fmt.Errorf("tagName is required")
 	}
 
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to parse html: %w", err)
 	}
 
 	var results []string
@@ -33,19 +37,25 @@ func ExtractTextByTag(htmlContent, tagName string) []string {
 	}
 	traverse(doc)
 
-	return results
+	return results, nil
 }
 
 // ExtractTextByTagWithAttr 使用 DOM 解析器提取指定标签且包含特定属性的文字内容。
 // tagName 为标签名，attrName 为属性名，attrValue 为属性值（为空则只检查属性是否存在）。
-func ExtractTextByTagWithAttr(htmlContent, tagName, attrName, attrValue string) []string {
-	if htmlContent == "" || tagName == "" || attrName == "" {
-		return nil
+func ExtractTextByTagWithAttr(htmlContent, tagName, attrName, attrValue string) ([]string, error) {
+	if htmlContent == "" {
+		return nil, nil
+	}
+	if tagName == "" {
+		return nil, fmt.Errorf("tagName is required")
+	}
+	if attrName == "" {
+		return nil, fmt.Errorf("attrName is required")
 	}
 
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to parse html: %w", err)
 	}
 
 	var results []string
@@ -75,18 +85,21 @@ func ExtractTextByTagWithAttr(htmlContent, tagName, attrName, attrValue string) 
 	}
 	traverse(doc)
 
-	return results
+	return results, nil
 }
 
 // ExtractTextByClass 使用 DOM 解析器提取指定 class 的标签文字内容。
-func ExtractTextByClass(htmlContent, className string) []string {
-	if htmlContent == "" || className == "" {
-		return nil
+func ExtractTextByClass(htmlContent, className string) ([]string, error) {
+	if htmlContent == "" {
+		return nil, nil
+	}
+	if className == "" {
+		return nil, fmt.Errorf("className is required")
 	}
 
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("failed to parse html: %w", err)
 	}
 
 	var results []string
@@ -115,18 +128,21 @@ func ExtractTextByClass(htmlContent, className string) []string {
 	}
 	traverse(doc)
 
-	return results
+	return results, nil
 }
 
 // ExtractTextByID 使用 DOM 解析器提取指定 id 的标签文字内容。
-func ExtractTextByID(htmlContent, id string) string {
-	if htmlContent == "" || id == "" {
-		return ""
+func ExtractTextByID(htmlContent, id string) (string, error) {
+	if htmlContent == "" {
+		return "", nil
+	}
+	if id == "" {
+		return "", fmt.Errorf("id is required")
 	}
 
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("failed to parse html: %w", err)
 	}
 
 	var result string
@@ -149,18 +165,18 @@ func ExtractTextByID(htmlContent, id string) string {
 	}
 	traverse(doc)
 
-	return result
+	return result, nil
 }
 
 // ExtractAllText 提取 HTML 中所有文字内容（去除所有 HTML 标签）。
-func ExtractAllText(htmlContent string) string {
+func ExtractAllText(htmlContent string) (string, error) {
 	if htmlContent == "" {
-		return ""
+		return "", nil
 	}
 
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("failed to parse html: %w", err)
 	}
 
 	var result strings.Builder
@@ -181,7 +197,7 @@ func ExtractAllText(htmlContent string) string {
 	}
 	traverse(doc)
 
-	return result.String()
+	return result.String(), nil
 }
 
 // extractTextFromNode 从节点及其子节点中提取所有文字内容

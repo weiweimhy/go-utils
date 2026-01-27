@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/weiweimhy/go-utils/errs"
 	"github.com/weiweimhy/go-utils/fsutil"
 	"github.com/weiweimhy/go-utils/httputil"
 	"github.com/weiweimhy/go-utils/logger"
@@ -114,10 +115,10 @@ func (dm *DownloadManager) Add(url, savePath string) error {
 // AddWithCallback 添加带回调的下载任务
 func (dm *DownloadManager) AddWithCallback(url, savePath string, callback func(url, savePath string, err error)) error {
 	if dm.closed.Load() {
-		return fmt.Errorf("download manager is closed")
+		return errs.ErrDownloadManagerClosed
 	}
 	if dm.pool == nil {
-		return fmt.Errorf("download manager not started")
+		return errs.ErrDownloadManagerNotStarted
 	}
 
 	dm.wg.Add(1)
