@@ -1,161 +1,294 @@
 # Go-Utils
 
-`go-utils` 是一个工业级的通用 Go 语言封装库，旨在提供稳健、高性能且易于测试的基础组件。项目深度集成了 Context 传播、接口化设计、安全 HTTP 客户端以及高性能结构化日志。
+[![Go Version](https://img.shields.io/badge/Go-%3E%3D1.24-blue.svg)](https://golang.org)
+[![Go Reference](https://pkg.go.dev/badge/github.com/weiweimhy/go-utils.svg)](https://pkg.go.dev/github.com/weiweimhy/go-utils)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+`go-utils` 是一个工业级的通用 Go 语言封装库，旨在提供稳健、高性能且易于测试的基础组件。
 
 ## 🚀 核心特性
 
-- **模块化设计**：功能拆分清晰（httputil, download, fsutil 等），按需导入。
-- **全链路 Context**：原生支持生命周期管控与超时控制，防止资源泄漏。
-- **Mock-Ready**：关键组件（Mongo, OCR）抽象为接口，极简 Mock 单元测试。
-- **性能卓越**：集成 `zap` (日志), `sonic` (JSON), `bbolt` 等高性能底层组件。
-- **内存优化**：Epub 模块采用流式/分块处理，轻松应对超大文件。
+- **模块化设计**：功能拆分清晰，按需导入
+- **全链路 Context**：原生支持生命周期管控与超时控制
+- **Mock-Ready**：关键组件抽象为接口，方便单元测试
+- **高性能**：集成 `zap`（日志）、`sonic`（JSON）、`bbolt`（KV存储）
+- **内存优化**：Epub 模块采用流式处理，轻松应对超大文件
 
-## 📦 安装
+## � 环境要求
+
+- **Go 1.24+**（使用了 Go 1.24 的新特性）
+
+## �📦 安装
 
 ```bash
 go get github.com/weiweimhy/go-utils
 ```
 
-### 🆙 升级库
-
-要升级到最新版本，请运行：
+### 升级到最新版本
 
 ```bash
 go get -u github.com/weiweimhy/go-utils
 go mod tidy
 ```
 
-若需升级到特定版本：
-
-```bash
-go get github.com/weiweimhy/go-utils@v3.1.2
-```
-
 ---
 
-## 🛠 常用包速查表
+## 🛠 包速查表
 
 | 包名 | 核心功能 | 适用场景 |
 | :--- | :--- | :--- |
-| `logger` | 结构化日志、Trace 追踪、CtxLogger | 全局日志记录、函数耗时分析 |
-| `httputil` | 安全 HTTP 客户端、GitHub 接口 | 远程 API 调用 |
-| `fsutil` | 增强型文件/目录操作 | 读写文件、自动创建父目录 |
-| `download` | 高并发下载管理器 | 批量文件下载、并发受控 |
+| `logger` | 结构化日志、Trace 追踪 | 全局日志记录、函数耗时分析 |
 | `task` | 通用工作池、任务分组 | 并发任务管理、goroutine 复用 |
-| `cryptoutil` | 常用 Hash & Base64 | 数据校验、编码转换 |
-| `mongo` | 接口化 MongoDB 客户端 | 数据库 CRUD |
-| `localdb` | BBolt 本地键值存储 | 轻量本地存储 |
-| `htmlutil` | HTML DOM 解析提取 | 网页内容抓取 |
-| `epub` | 高性能 EPUB 解析修改 | 电子书处理 |
-| `tencentocr` | 腾讯 OCR 服务封装 | 发票识别、文字提取 |
-| `errs` | 统一错误映射 | 业务错误码规范化 |
+| `download` | 高并发下载管理器 | 批量文件下载 |
+| `httputil` | 安全 HTTP 客户端 | 远程 API 调用 |
+| `fsutil` | 文件/目录操作 | 读写文件、自动创建父目录 |
+| `cryptoutil` | Hash &amp; Base64 | 数据校验、编码转换 |
+| `mongo` | MongoDB 客户端（接口化） | 数据库 CRUD |
+| `localdb` | BBolt 本地 KV 存储 | 轻量本地存储 |
+| `htmlutil` | HTML DOM 解析 | 网页内容提取 |
+| `tencentocr` | 腾讯 OCR 封装 | 发票识别、文字提取 |
+| `errs` | 预定义错误 | 统一错误处理 |
 
 ---
 
 ## 📖 快速上手
 
-### 1. 高性能日志 (logger)
+### 1. 日志 (logger)
 
-```go
-import "github.com/weiweimhy/go-utils/logger"
-
-// 初始化（建议在 main 或 init 中执行一次）
-logger.Init(
-    logger.WithFilename("./logs/app.log"),
-    logger.WithLevel(zap.InfoLevel),
-)
-
-// 使用：记录并追踪函数执行
-func Process() {
-    defer logger.Trace(logger.L(), "Process")()
-    logger.L().Info("working", zap.String("id", "123"))
-}
-```
-
-### 2. 数据库操作 (mongo)
-```go
-import "github.com/weiweimhy/go-utils/mongo"
-
-// 创建满足接口的实例
-client, _ := mongo.NewClient(ctx, mongo.Config{
-    Uri: "mongodb://localhost:27017",
-    DatabaseName: "app_db",
-    OPTimeout: 5 * time.Second,
-})
-
-// 使用接口而非具体实现，方便 Mock
-var user struct{ Name string }
-client.FindOne(ctx, "users", bson.M{"id": 1}, &user)
-```
-
-### 3. 通用工作池 (task)
-```go
-import "github.com/weiweimhy/go-utils/task"
-
-// 创建工作池：10 个 worker，缓冲区 100
-pool := task.NewWorkerPool(ctx, 10, 100)
-defer pool.Close(5 * time.Second)
-
-// 提交任务
-pool.SubmitFunc(func(ctx context.Context) {
-    // 执行业务逻辑
-})
-
-// 使用任务组等待一批任务完成
-group := pool.NewGroup()
-for _, item := range items {
-    group.SubmitFunc(func(ctx context.Context) {
-        process(item)
-    })
-}
-group.Wait()
-```
-
-### 4. 高并发下载 (download)
-```go
-import "github.com/weiweimhy/go-utils/download"
-
-dm := download.NewDownloadManager(download.WithWorkers(5))
-dm.Start(ctx)
-
-// 任务式添加，自动并发执行
-dm.Add("https://example.com/a.jpg", "./data/a.jpg")
-dm.Wait()
-```
-
-### 5. 工具包示例 (fsutil/cryptoutil)
 ```go
 import (
-    "github.com/weiweimhy/go-utils/fsutil"
-    "github.com/weiweimhy/go-utils/cryptoutil"
+    "github.com/weiweimhy/go-utils/logger"
+    "go.uber.org/zap"
 )
 
-// 安全重命名：自动确保父目录存在
-fsutil.SaveToFile("./out/config.json", data)
+func main() {
+    // 生产环境初始化
+    logger.Init(
+        logger.WithFilename("./logs/app.log"),
+        logger.WithLevel(zap.InfoLevel),
+    )
+    // 或开发环境（彩色控制台输出）
+    // logger.InitDevelopment()
 
-// 快速 SHA256
-hash := cryptoutil.StringToHash("hello")
+    // 使用
+    logger.L().Info("server started", zap.Int("port", 8080))
+
+    // 函数追踪（自动记录耗时和 panic）
+    defer logger.Trace(logger.L(), "main")()
+}
+```
+
+### 2. 工作池 (task)
+
+```go
+import (
+    "context"
+    "time"
+    "github.com/weiweimhy/go-utils/task"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // 创建工作池：10 个 worker，缓冲区 100
+    pool := task.NewWorkerPool(ctx, 10, 100)
+    defer pool.Close(5 * time.Second)
+
+    // 提交单个任务
+    pool.SubmitFunc(func(ctx context.Context) {
+        // 业务逻辑
+    })
+
+    // 使用任务组批量提交并等待
+    items := []string{"a", "b", "c"}
+    group := pool.NewGroup()
+    for _, item := range items {
+        item := item // 捕获循环变量
+        group.SubmitFunc(func(ctx context.Context) {
+            process(item)
+        })
+    }
+    group.Wait()
+}
+```
+
+### 3. 下载管理器 (download)
+
+```go
+import (
+    "context"
+    "github.com/weiweimhy/go-utils/download"
+)
+
+func main() {
+    ctx := context.Background()
+
+    dm := download.NewDownloadManager(download.WithWorkers(5))
+    dm.Start(ctx)
+    defer dm.Close()
+
+    // 添加下载任务
+    dm.Add("https://example.com/file.zip", "./downloads/file.zip")
+    dm.Wait() // 等待所有任务完成
+}
+```
+
+### 4. HTTP 请求 (httputil)
+
+```go
+import (
+    "context"
+    "github.com/weiweimhy/go-utils/httputil"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // 获取字节流
+    data, err := httputil.GetBytesFromUrl(ctx, "https://api.example.com/data")
+
+    // 获取字符串
+    html, err := httputil.GetStringFromUrl(ctx, "https://example.com")
+}
+```
+
+### 5. 文件操作 (fsutil)
+
+```go
+import "github.com/weiweimhy/go-utils/fsutil"
+
+// 保存文件（自动创建父目录）
+err := fsutil.SaveToFile("./data/output/result.json", data)
+
+// 检查文件是否存在
+exists := fsutil.IsFileExist("./config.json")
+
+// 获取文件的 Base64 编码
+base64Str, err := fsutil.GetFileBase64("./image.png")
+```
+
+### 6. MongoDB (mongo)
+
+```go
+import (
+    "context"
+    "time"
+    "github.com/weiweimhy/go-utils/mongo"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // 创建客户端（超时有默认值）
+    client, err := mongo.NewClient(ctx, mongo.Config{
+        Uri:          "mongodb://localhost:27017",
+        DatabaseName: "mydb",
+    })
+    if err != nil {
+        panic(err)
+    }
+    defer client.Disconnect(ctx)
+
+    // CRUD 操作
+    client.InsertOne(ctx, "users", map[string]any{"name": "Alice"})
+    client.FindOne(ctx, "users", map[string]any{"name": "Alice"}, &result)
+}
+```
+
+### 7. 本地 KV 存储 (localdb)
+
+```go
+import "github.com/weiweimhy/go-utils/localdb"
+
+// 打开数据库
+db, err := localdb.Open("./data", "cache.db")
+if err != nil {
+    panic(err)
+}
+defer db.Close()
+
+// 存取数据
+db.Set("bucket", "key", []byte("value"))
+data, _ := db.Get("bucket", "key")
+
+// JSON 序列化存取
+db.SetJSON("users", "user:1", user)
+db.GetJSON("users", "user:1", &user)
+```
+
+### 8. HTML 解析 (htmlutil)
+
+```go
+import "github.com/weiweimhy/go-utils/htmlutil"
+
+html := `<div class="content"><p>Hello</p><p>World</p></div>`
+
+// 按标签提取
+texts, err := htmlutil.ExtractTextByTag(html, "p")
+// texts = ["Hello", "World"]
+
+// 按 class 提取
+texts, err := htmlutil.ExtractTextByClass(html, "content")
+
+// 按 ID 提取
+text, err := htmlutil.ExtractTextByID(html, "main")
+
+// 提取所有文本
+allText, err := htmlutil.ExtractAllText(html)
+```
+
+### 9. 加密工具 (cryptoutil)
+
+```go
+import "github.com/weiweimhy/go-utils/cryptoutil"
+
+// SHA256 哈希
+hash := cryptoutil.StringToHash("hello")      // 完整 64 字符
+short := cryptoutil.StringToHash16("hello")  // 前 16 字符
+
+// Base64 编码
+encoded := cryptoutil.GetBase64FromBytes(data)
+```
+
+### 10. 错误处理 (errs)
+
+```go
+import (
+    "errors"
+    "github.com/weiweimhy/go-utils/errs"
+)
+
+// 使用预定义错误
+if err != nil {
+    if errors.Is(err, errs.ErrNotFound) {
+        // 处理未找到
+    }
+    if errors.Is(err, errs.ErrDownloadManagerClosed) {
+        // 下载管理器已关闭
+    }
+}
 ```
 
 ---
 
-## 🛡 开发规范 (项目准则)
+## 🛡 开发规范
 
-为保持工业级代码质量，接入项目请遵循：
-1. **必需传 Context**：所有 IO 操作必须接收 `context` 参数以确保生命周期受控。
-2. **禁止直接使用 `zap.L()`**：请通过 `logger.L()` 获取受控配置的实例。
-3. **接口编程**：注入依赖时优先声明 `IMongoClient` 等接口，提升代码解耦度。
+1. **必传 Context**：所有 IO 操作必须接收 `context` 参数
+2. **使用 logger.L()**：禁止直接使用 `zap.L()`
+3. **接口编程**：注入依赖时使用 `IMongoClient` 等接口
+
+---
 
 ## 📈 版本管理
-本项目遵循 [Semantic Versioning](https://semver.org/)。
-- **主版本号 (Major)**: 包含不兼容的 API 变更。
-- **次版本号 (Minor)**: 包含向后兼容的功能性新增。
-- **修订号 (Patch)**: 包含向后兼容的问题修正。
 
-发布新版本时，请确保：
-1. 更新 `rules/rules.md` 中的 Go 版本和定位。
-2. 运行 `go mod tidy`。
-3. 执行 `git tag vX.Y.Z` 并推送到远端。
+遵循 [Semantic Versioning](https://semver.org/)：
+
+- **Major**：不兼容的 API 变更
+- **Minor**：向后兼容的功能新增
+- **Patch**：向后兼容的问题修正
+
+---
 
 ## 📄 License
-MIT License
+
+[MIT License](LICENSE)
