@@ -14,21 +14,59 @@
 - **高性能**：集成 `zap`（日志）、`sonic`（JSON）、`bbolt`（KV存储）
 - **内存优化**：Epub 模块采用流式处理，轻松应对超大文件
 
-## � 环境要求
+## 📋 环境要求
 
 - **Go 1.24+**（使用了 Go 1.24 的新特性）
 
-## �📦 安装
+## 📦 安装
 
 ```bash
-go get github.com/weiweimhy/go-utils
+go get github.com/weiweimhy/go-utils/v3
 ```
 
 ### 升级到最新版本
 
 ```bash
-go get -u github.com/weiweimhy/go-utils
+go get -u github.com/weiweimhy/go-utils/v3
 go mod tidy
+```
+
+### 安装指定版本
+
+```bash
+go get github.com/weiweimhy/go-utils/v3@v3.2.0
+```
+
+### 从 v2.x 或无后缀版本迁移
+
+1. 更新 go.mod 中的依赖：
+
+   ```bash
+   go get github.com/weiweimhy/go-utils/v3@latest
+   ```
+
+2. 更新所有 import 路径，添加 `/v3` 后缀：
+
+   ```go
+   // 旧版本
+   import "github.com/weiweimhy/go-utils/logger"
+
+   // 新版本 (v3.x)
+   import "github.com/weiweimhy/go-utils/v3/logger"
+   ```
+
+3. 执行 `go mod tidy` 清理依赖
+
+### 强制刷新模块缓存
+
+如果遇到缓存问题（如版本未更新），可强制清除并重新拉取：
+
+```bash
+# 清除指定模块缓存
+go clean -modcache
+
+# 或仅清除本项目缓存后重新拉取
+GOPROXY=https://proxy.golang.org,direct go get github.com/weiweimhy/go-utils/v3@v3.2.0
 ```
 
 ---
