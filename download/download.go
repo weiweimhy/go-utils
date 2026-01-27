@@ -7,188 +7,211 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/weiweimhy/go-utils/fsutil"
 	"github.com/weiweimhy/go-utils/httputil"
 	"github.com/weiweimhy/go-utils/logger"
+	"github.com/weiweimhy/go-utils/task"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
-type DownFileInfo struct {
+// DownloadTask 表示一个下载任务
+type DownloadTask struct {
+	URL      string
 	SavePath string
-	Url      string
 	Callback func(url, savePath string, err error)
 }
 
 // DownloadManager 管理大规模并发下载任务
 type DownloadManager struct {
-	jobs chan *DownFileInfo
-	wg   sync.WaitGroup
-	mu   sync.RWMutex
-	once sync.Once
+	pool   *task.WorkerPool
+	client *http.Client
+	delay  time.Duration
 
+	wg        sync.WaitGroup
+	closeOnce sync.Once
+	closed    atomic.Bool
+
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+// DMOption 定义 DownloadManager 的配置选项
+type DMOption func(*DownloadManager)
+
+// WithWorkers 设置工作协程数量
+func WithWorkers(w int) DMOption {
+	return func(dm *DownloadManager) {
+		// 此选项在 Start 时生效
+	}
+}
+
+// WithDelay 设置每个下载任务之间的延迟
+func WithDelay(d time.Duration) DMOption {
+	return func(dm *DownloadManager) { dm.delay = d }
+}
+
+// WithClient 设置自定义 HTTP 客户端
+func WithClient(c *http.Client) DMOption {
+	return func(dm *DownloadManager) { dm.client = c }
+}
+
+// dmConfig 内部配置结构
+type dmConfig struct {
 	workers  int
 	chanSize int
 	delay    time.Duration
 	client   *http.Client
-
-	started    bool
-	closed     bool
-	onComplete func(url, savePath string, err error)
-	ctx        context.Context
-	cancel     context.CancelFunc
-	eg         *errgroup.Group
 }
 
-type DMOption func(*DownloadManager)
-
-func WithWorkers(w int) DMOption         { return func(dm *DownloadManager) { dm.workers = w } }
-func WithChanSize(s int) DMOption        { return func(dm *DownloadManager) { dm.chanSize = s } }
-func WithDelay(d time.Duration) DMOption { return func(dm *DownloadManager) { dm.delay = d } }
-func WithClient(c *http.Client) DMOption { return func(dm *DownloadManager) { dm.client = c } }
-
-// NewDownloadManager 使用 Functional Options 创建管理器
-func NewDownloadManager(opts ...DMOption) *DownloadManager {
-	dm := &DownloadManager{
+func defaultConfig() *dmConfig {
+	return &dmConfig{
 		workers:  20,
 		chanSize: 100,
 		client:   httputil.DefaultHttpClient,
 	}
+}
+
+// NewDownloadManager 创建下载管理器
+func NewDownloadManager(opts ...DMOption) *DownloadManager {
+	dm := &DownloadManager{
+		client: httputil.DefaultHttpClient,
+	}
 	for _, opt := range opts {
 		opt(dm)
 	}
-	dm.jobs = make(chan *DownFileInfo, dm.chanSize)
 	return dm
 }
 
+// Start 启动下载管理器
 func (dm *DownloadManager) Start(ctx context.Context) error {
-	dm.mu.Lock()
-	defer dm.mu.Unlock()
+	return dm.StartWithConfig(ctx, 20, 100)
+}
 
-	if dm.started {
-		return nil
+// StartWithConfig 使用指定配置启动下载管理器
+func (dm *DownloadManager) StartWithConfig(ctx context.Context, workers, bufferSize int) error {
+	if dm.pool != nil {
+		return nil // 已启动
 	}
 
-	dm.started = true
 	dm.ctx, dm.cancel = context.WithCancel(ctx)
-	dm.eg, dm.ctx = errgroup.WithContext(dm.ctx)
+	dm.pool = task.NewWorkerPool(dm.ctx, workers, bufferSize)
 
-	for i := 0; i < dm.workers; i++ {
-		id := i
-		dm.eg.Go(func() error {
-			return dm.worker(id)
-		})
-	}
-
-	logger.L().Info("download manager started", zap.Int("workers", dm.workers))
+	logger.L().Info("download manager started",
+		zap.Int("workers", workers),
+		zap.Int("buffer", bufferSize),
+	)
 	return nil
 }
 
+// Add 添加下载任务
 func (dm *DownloadManager) Add(url, savePath string) error {
-	dm.mu.RLock()
-	if dm.closed {
-		dm.mu.RUnlock()
-		return fmt.Errorf("manager is closed")
-	}
-	if !dm.started {
-		dm.mu.RUnlock()
-		return fmt.Errorf("manager not started")
-	}
-	ctx := dm.ctx
-	dm.mu.RUnlock()
-
-	dm.wg.Add(1)
-	select {
-	case dm.jobs <- &DownFileInfo{SavePath: savePath, Url: url}:
-		return nil
-	case <-ctx.Done():
-		dm.wg.Done()
-		return ctx.Err()
-	}
+	return dm.AddWithCallback(url, savePath, nil)
 }
 
+// AddWithCallback 添加带回调的下载任务
+func (dm *DownloadManager) AddWithCallback(url, savePath string, callback func(url, savePath string, err error)) error {
+	if dm.closed.Load() {
+		return fmt.Errorf("download manager is closed")
+	}
+	if dm.pool == nil {
+		return fmt.Errorf("download manager not started")
+	}
+
+	dm.wg.Add(1)
+
+	submitted := dm.pool.SubmitFunc(func(ctx context.Context) {
+		defer dm.wg.Done()
+
+		err := downloadFile(ctx, dm.client, url, savePath)
+		if err != nil {
+			logger.L().Warn("download failed",
+				zap.String("url", url),
+				zap.String("path", savePath),
+				zap.Error(err),
+			)
+		}
+
+		if callback != nil {
+			callback(url, savePath, err)
+		}
+
+		if dm.delay > 0 {
+			select {
+			case <-time.After(dm.delay):
+			case <-ctx.Done():
+			}
+		}
+	})
+
+	if !submitted {
+		dm.wg.Done()
+		return dm.ctx.Err()
+	}
+
+	return nil
+}
+
+// Wait 等待所有下载任务完成
 func (dm *DownloadManager) Wait() {
 	dm.wg.Wait()
 }
 
+// Close 关闭下载管理器
 func (dm *DownloadManager) Close() error {
-	dm.once.Do(func() {
-		dm.mu.Lock()
-		dm.closed = true
-		dm.mu.Unlock()
+	var err error
+	dm.closeOnce.Do(func() {
+		dm.closed.Store(true)
+
+		// 等待所有任务完成
+		dm.wg.Wait()
+
+		if dm.pool != nil {
+			if !dm.pool.Close(30 * time.Second) {
+				err = fmt.Errorf("download manager close timeout")
+			}
+		}
 
 		if dm.cancel != nil {
 			dm.cancel()
 		}
-		close(dm.jobs)
 	})
-
-	dm.wg.Wait()
-	if dm.eg != nil {
-		return dm.eg.Wait()
-	}
-	return nil
+	return err
 }
 
-func (dm *DownloadManager) worker(id int) error {
-	for {
-		select {
-		case info, ok := <-dm.jobs:
-			if !ok {
-				return nil
-			}
-
-			err := downloadFile(dm.ctx, dm.client, info.Url, info.SavePath)
-			if err != nil {
-				logger.L().Warn("download failed", zap.String("url", info.Url), zap.Error(err))
-			}
-
-			if dm.onComplete != nil {
-				dm.onComplete(info.Url, info.SavePath, err)
-			}
-			dm.wg.Done()
-
-			if dm.delay > 0 {
-				select {
-				case <-time.After(dm.delay):
-				case <-dm.ctx.Done():
-					return dm.ctx.Err()
-				}
-			}
-		case <-dm.ctx.Done():
-			return dm.ctx.Err()
-		}
-	}
-}
-
+// downloadFile 下载单个文件
 func downloadFile(ctx context.Context, client *http.Client, url string, path string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("create request failed: %w", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("http request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("http error: %d", resp.StatusCode)
+		return fmt.Errorf("http error: status %d", resp.StatusCode)
 	}
 
 	if err := fsutil.CreateDir(path); err != nil {
-		return err
+		return fmt.Errorf("create dir failed: %w", err)
 	}
 
 	file, err := os.Create(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("create file failed: %w", err)
 	}
 	defer file.Close()
 
 	_, err = io.Copy(file, resp.Body)
-	return err
+	if err != nil {
+		return fmt.Errorf("write file failed: %w", err)
+	}
+
+	return nil
 }
