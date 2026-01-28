@@ -16,13 +16,20 @@ func IsFileExist(path string) bool {
 	return !info.IsDir()
 }
 
+// SaveToFile 保存数据到文件，默认使用 0644 权限。
+// 如果父目录不存在，会自动创建。
 func SaveToFile(path string, data []byte) error {
+	return SaveToFileWithPerm(path, data, 0644)
+}
+
+// SaveToFileWithPerm 保存数据到文件，并指定权限。
+func SaveToFileWithPerm(path string, data []byte, perm os.FileMode) error {
 	err := CreateDir(path)
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0666)
+	return os.WriteFile(path, data, perm)
 }
 
 func GetFileBase64(path string) (string, error) {
