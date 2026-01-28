@@ -22,40 +22,44 @@ const (
 	TokenTypeRefresh TokenType = "refresh"
 )
 
-// IJWT 定义了 JWT 操作的标准接口，方便外部 Mock 测试。
+// IJWT 定义了 JWT 操作的标准接口，提供令牌生成、验证和刷新功能。
 type IJWT interface {
 	// Generate 生成访问令牌和刷新令牌对。
+	// userID: 用户唯一标识
+	// extra: 需要存储在令牌中的额外声明信息
 	Generate(ctx context.Context, userID string, extra map[string]any) (*TokenPair, error)
-	// Validate 验证令牌并返回 Claims。
+	// Validate 验证令牌的有效性并返回其中的 Claims。
+	// token: 待验证的 JWT 字符串（可以是 AccessToken 或 RefreshToken）
 	Validate(ctx context.Context, token string) (*Claims, error)
-	// Refresh 使用刷新令牌获取新的令牌对。
+	// Refresh 使用刷新令牌获取一对新的访问令牌和刷新令牌。
+	// 会提取旧 RefreshToken 中的 UserID 和 Extra 信息。
 	Refresh(ctx context.Context, refreshToken string) (*TokenPair, error)
 }
 
-// TokenPair 包含访问令牌和刷新令牌。
+// TokenPair 包含一对生成的令牌及其过期信息。
 type TokenPair struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token"`
-	ExpiresAt    time.Time `json:"expires_at"`
+	AccessToken  string    `json:"access_token"`  // 访问令牌，用于常规鉴权
+	RefreshToken string    `json:"refresh_token"` // 刷新令牌，用于续期
+	ExpiresAt    time.Time `json:"expires_at"`    // AccessToken 的过期时间
 }
 
-// Claims 自定义 JWT 声明。
+// Claims 自定义 JWT 声明，包含用户信息和标准注册声明。
 type Claims struct {
-	UserID    string         `json:"user_id"`
-	TokenType TokenType      `json:"token_type"`
-	Extra     map[string]any `json:"extra,omitempty"`
-	jwt.RegisteredClaims
+	UserID               string         `json:"user_id"`         // 用户唯一标识
+	TokenType            TokenType      `json:"token_type"`      // 令牌类型 (access/refresh)
+	Extra                map[string]any `json:"extra,omitempty"` // 业务自定义扩展信息
+	jwt.RegisteredClaims                // JWT 标准声明 (iss, sub, exp, iat, etc.)
 }
 
-// Config 包含 JWT 的配置。
+// Config 包含 JWT 模块的配置参数。
 type Config struct {
-	Secret             string        `yaml:"secret"`
-	AccessTokenExpiry  time.Duration `yaml:"access_token_expiry"`
-	RefreshTokenExpiry time.Duration `yaml:"refresh_token_expiry"`
-	Issuer             string        `yaml:"issuer"`
+	Secret             string        `yaml:"secret"`               // 签名密钥，必须保密
+	AccessTokenExpiry  time.Duration `yaml:"access_token_expiry"`  // 访问令牌有效期，默认 15 分钟
+	RefreshTokenExpiry time.Duration `yaml:"refresh_token_expiry"` // 刷新令牌有效期，默认 7 天
+	Issuer             string        `yaml:"issuer"`               // 签发者名称，默认 "go-utils"
 }
 
-// DefaultConfig 返回带有合理默认值的配置。
+// DefaultConfig 返回带有工业级合理默认值的配置。
 func DefaultConfig() Config {
 	return Config{
 		AccessTokenExpiry:  15 * time.Minute,
