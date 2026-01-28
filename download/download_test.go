@@ -70,3 +70,23 @@ func TestDownloadManager_BatchDownload(t *testing.T) {
 		t.Errorf("expected %d files, got %d", taskCount, len(files))
 	}
 }
+
+func TestDownloadManager_WithWorkers(t *testing.T) {
+	const customWorkers = 12
+	dm := NewDownloadManager(WithWorkers(customWorkers))
+
+	if dm.workers != customWorkers {
+		t.Errorf("expected workers to be %d, got %d", customWorkers, dm.workers)
+	}
+
+	ctx := context.Background()
+	_ = dm.Start(ctx)
+	defer dm.Close()
+
+	// 间接验证 pool 是否按预期启动
+	if dm.pool == nil {
+		t.Fatal("pool should not be nil after Start")
+	}
+
+	// 注意：dm.pool 的内部 workers 无法直接获取，但我们可以通过 fields 确认配置已正确传递
+}

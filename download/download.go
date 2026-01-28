@@ -31,6 +31,9 @@ type DownloadManager struct {
 	client *http.Client
 	delay  time.Duration
 
+	workers    int
+	bufferSize int
+
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 	closed    atomic.Bool
@@ -45,7 +48,9 @@ type DMOption func(*DownloadManager)
 // WithWorkers 设置工作协程数量
 func WithWorkers(w int) DMOption {
 	return func(dm *DownloadManager) {
-		// 此选项在 Start 时生效
+		if w > 0 {
+			dm.workers = w
+		}
 	}
 }
 
@@ -78,7 +83,9 @@ func defaultConfig() *dmConfig {
 // NewDownloadManager 创建下载管理器
 func NewDownloadManager(opts ...DMOption) *DownloadManager {
 	dm := &DownloadManager{
-		client: httputil.DefaultHttpClient,
+		client:     httputil.DefaultHttpClient,
+		workers:    20,
+		bufferSize: 100,
 	}
 	for _, opt := range opts {
 		opt(dm)
@@ -88,7 +95,7 @@ func NewDownloadManager(opts ...DMOption) *DownloadManager {
 
 // Start 启动下载管理器
 func (dm *DownloadManager) Start(ctx context.Context) error {
-	return dm.StartWithConfig(ctx, 20, 100)
+	return dm.StartWithConfig(ctx, dm.workers, dm.bufferSize)
 }
 
 // StartWithConfig 使用指定配置启动下载管理器
