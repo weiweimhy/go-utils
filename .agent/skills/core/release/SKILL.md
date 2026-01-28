@@ -1,11 +1,24 @@
 ---
 name: 发布版本
-description: 发布新版本到 GitHub，包括版本号选择、变更日志生成、Git 标签创建和推送
+description: 发布新版本到 GitHub，包括版本号选择、Release Notes 自动化生成、Git 标签创建和推送
 ---
 
 # 发布版本 Skill
 
 发布 go-utils 库的新版本到 GitHub，遵循语义化版本规范。
+
+## 🔍 Source Mapping
+
+| 能力 | 来源 | 类型 |
+| :--- | :--- | :--- |
+| 语义化版本控制 | `semver-standard` | ✅ 行业标准规范 |
+| Release Notes 自动化 | `github-changelog-gen` | ✅ 整合优质开发模式 |
+| 分发与产物管理 | `goreleaser-patterns` | ✅ 参考 CI/CD 最佳实践 |
+
+## 📚 参考资料 (References)
+
+- [Semantic Versioning 2.0.0](https://semver.org/)
+- [GitHub Release Documentation](https://docs.github.com/en/repositories/releasing-projects-on-github)
 
 ## 前置条件检查
 
@@ -55,15 +68,70 @@ git tag --list --sort=-v:refname | Select-Object -First 5
 1. 本次发布包含哪些改动？（新功能、Bug 修复、破坏性变更）
 2. 建议的新版本号是什么？
 
+## Release Notes 生成规范
+
+为了生成高质量的 Release Notes，遵循以下分类规则。
+
+### 提交类型映射
+
+| 提交类型 | Release Notes 章节 | 说明 |
+| :--- | :--- | :--- |
+| `feat` | **🚀 Features** | 新增功能 |
+| `fix` | **🐛 Bug Fixes** | 错误修复 |
+| `perf` | **⚡ Performance** | 性能优化 |
+| `refactor` | **🛠 Improvements** | 代码重构（对用户有感知的改进） |
+| `docs` | **📝 Documentation** | 文档更新 |
+| `chore`, `test`, `style` | **🧹 Others** | 其他不影响核心功能的变更 |
+
+### Release Notes 模板
+
+```markdown
+# Release vX.Y.Z (YYYY-MM-DD)
+
+## 🚀 Features
+- [scope] 简短描述提交内容
+
+## 🐛 Bug Fixes
+- [scope] 修复了某个已知问题
+
+## ⚡ Performance
+- [scope] 优化了某个模块的执行效率
+
+## 🛠 Improvements
+- [scope] 提升了某个功能的易用性
+
+## 📝 Documentation
+- 更新了 README 关于 X 功能的说明
+
+---
+**Full Changelog**: https://github.com/weiweimhy/go-utils/compare/vOLD...vNEW
+
+## 📦 Distribution & Artifacts
+
+- **GitHub Actions**: 每次发布标签后，必须触发自动化的 `Go Releaser` 或 `Build` 流水线。
+- **二进制发布**：如果是工具类项目，需在 Release 页面提供主流平台的二进制文件。
+- **Docker 镜像**：如果涉及服务端应用，需同步发布版本化的 Docker 镜像。
+```
+
 ## 发布流程
 
-### 步骤 1：生成变更日志
+### 步骤 1：生成 Release Notes
+
+#### 1. 自动化生成 (AI 驱动)
+
+**指令**：请 AI 根据自上个版本以来的提交记录，参照上面的“Release Notes 模板”自动生成一份草稿。
 
 ```powershell
 # turbo
-# 查看自上个版本以来的提交（替换 <LAST_TAG> 为实际的上个版本标签）
+# 获取自上个版本以来的所有提交（替换 <LAST_TAG>）
 git log <LAST_TAG>..HEAD --oneline --no-decorate
 ```
+
+#### 2. 手动调整
+
+- 检查 AI 生成的分类是否准确。
+- 确保主标题版本号和日期正确。
+- 合并重复或过细的提交项，使其阅读体验更佳。
 
 ### 步骤 2：确认 go.mod 版本路径
 

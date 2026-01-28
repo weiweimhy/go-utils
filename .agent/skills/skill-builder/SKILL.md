@@ -50,25 +50,29 @@ Get-ChildItem -Path ".agent/skills" -Recurse -Filter "SKILL.md" | ForEach-Object
 👉 <https://skillsmp.com/zh>
 
 > [!TIP]
-> 如果内置浏览器工具访问失败，可以使用本项目自带的脚本辅助：
+> 使用本项目自带的脚本访问网页：
+>
 > ```powershell
 > # 使用配套脚本访问交互式网页
 > python .agent/skills/skill-builder/scripts/web_access.py --url <URL>
 > ```
 
-**检索判断**：
+**检索判断与整合**：
 
 - 是否存在同名 Skill？
 - 是否存在功能相同但命名不同的 Skill？
 - 是否可以通过多个 Skill 组合实现？
+- **外部能力对标**：对比外部优质 Skill（如 `antigravity-awesome-skills` 和 `Skill Marketplace`）中的功能点。
+  - ✅ **必须整合**：如果外部 Skill 包含本地缺失的高价值能力（如数据库优化、安全实践等），必须将其整合进新 Skill 的设计中。
+  - ❌ **严禁闭门造车**：禁止在明知有更全面的外部实现时，创建一个功能简陋的本地版本。
 
 ### Step 3：复用策略分析（非常重要）
 
 对每个子能力，判断并填写来源映射表：
 
-| 能力   | 来源                       | 复用策略                                   |
-|--------|----------------------------|--------------------------------------------|
-| 能力 1 | 已有 skill 名称 或 "新建" | ✅ 直接复用 / 🔁 组合实现 / 🆕 需要新建   |
+| 能力   | 来源                      | 复用策略                                |
+| ------ | ------------------------- | --------------------------------------- |
+| 能力 1 | 已有 skill 名称 或 "新建" | ✅ 直接复用 / 🔁 组合实现 / 🆕 需要新建 |
 
 > [!IMPORTANT]
 > 每个能力必须明确来源，不允许凭空创造
@@ -129,6 +133,27 @@ description: <一句话描述>
 ## 📤 Output
 
 （输出内容格式）
+
+## 📚 References
+
+（列出参考的外部链接、技能或文档）
+
+- 参考项 1：<URL 或 技能名称>
+- 参考项 2：<URL 或 技能名称>
+
+## 🔍 能力溯源 (Source Mapping)
+
+| 能力 | 来源 | 说明 |
+| :--- | :--- | :--- |
+| 流程设计 | `antigravity-system-prompt` | ✅ 遵循 Agent 核心协作哲学 |
+| 复用策略 | `dreyfus-model-skill` | ✅ 参考 Dreyfus 技能习得模型 |
+| 规范化输出 | `skill-marketplace-standard` | ✅ 对标外部技能市场规范 |
+
+## 📚 参考资料 (References)
+
+- [Antigravity Awesome Skills Guide](https://github.com/sickn33/antigravity-awesome-skills)
+- [Prompt Engineering Guide](https://www.promptingguide.ai/)
+- [The Dreyfus Model of Skill Acquisition](https://en.wikipedia.org/wiki/Dreyfus_model_of_skill_acquisition)
 
 ## ⚠️ Constraints
 

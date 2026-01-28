@@ -5,6 +5,17 @@ description: 帮助开发者生成规范、清晰、可维护的 Git 提交记�
 
 # Skill: git-workflow
 
+## 🎯 触发条件
+
+当以下情况发生时启用：
+
+- "开始提交流程"
+- "帮我总结一下这些改动"
+- "分析一下我的 diff 并生成提交信息"
+- "这个大改动该怎么拆分提交？"
+
+👉 自动启用本 Skill
+
 ## 🎯 Purpose
 
 提供从代码变更分析到生成符合 Conventional Commit 规范的提交信息的全流程引导。
@@ -16,7 +27,7 @@ description: 帮助开发者生成规范、清晰、可维护的 Git 提交记�
 - **生成消息**：生成符合规范的 Commit Message。
 - **拆分建议**：根据变更规模和逻辑关系提示是否需要拆分提交。
 
-## 🔍 Source Mapping
+## 🔍 能力溯源 (Source Mapping)
 
 | 能力 | 来源 | 说明 |
 | :--- | :--- | :--- |
@@ -26,6 +37,12 @@ description: 帮助开发者生成规范、清晰、可维护的 Git 提交记�
 | 流程自动化 | `git-pushing` | 用于暂存、提交及推送的原子操作执行 |
 | 任务安排 | `github-workflow-automation` | 用于 PR 关联及整体流程编排 |
 | 拆分提示 | **新建** | 检查 diff 行数及文件分布，若过大则提示拆分 |
+
+## 📚 参考资料 (References)
+
+- [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
+- [GitHub Flow Guide](https://docs.github.com/en/get-started/using-git/github-flow)
+- [GitFlow Workflow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow)
 
 ## 🧠 Usage
 
@@ -43,6 +60,7 @@ description: 帮助开发者生成规范、清晰、可维护的 Git 提交记�
 - **改动总结**：清晰的变更列表。
 - **推荐 Message**：符合规范的提交信息建议。
 - **拆分说明**：如果建议拆分，给出拆分方案。
+- **Release Notes**：在发版环节，基于 Commit History 生成分类清晰的变更日志。
 
 ## ⚠️ Constraints
 

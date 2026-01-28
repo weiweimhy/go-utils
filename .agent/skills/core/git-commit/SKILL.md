@@ -7,6 +7,30 @@ description: 规范化提交代码到 Git 仓库，包括状态检查、文件�
 
 规范化提交代码变更到 Git 仓库，遵循项目 Git 提交规范。
 
+## 🎯 触发条件
+
+当以下情况发生时启用：
+
+- "提交代码"
+- "帮我写个 Commit Message"
+- "git commit"
+- "暂存并提交变更"
+
+👉 自动启用本 Skill
+
+## 🔍 能力溯源 (Source Mapping)
+
+| 能力 | 来源 | 类型 |
+| :--- | :--- | :--- |
+| 约定式提交规范 | `conventional-commits` | ✅ 行业标准规范 |
+| 逻辑拆分建议 | `git-best-practices` | ✅ 整合优质开发模式 |
+| 作用域自动推断 | `antigravity-custom` | 🛠 内部增强功能 |
+
+## 📚 参考资料 (References)
+
+- [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
+- [Git Commit Best Practices Guide](https://git-scm.com/book/en/v2/Distributed-Git-Contributing-to-a-Project)
+
 ## 前置条件检查
 
 在提交前，必须检查当前状态：
@@ -21,9 +45,17 @@ git status
 git diff --stat
 ```
 
-## 提交类型说明
+## 提交格式
 
-根据 `rules/git-commit-rules.md` 规范：
+```text
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+## 提交类型说明
 
 | 类型 | 说明 | 示例 |
 | :--- | :--- | :--- |
@@ -38,6 +70,23 @@ git diff --stat
 | `revert` | 回滚提交 | `revert: 撤销 feat(xxx)` |
 | `ci` | CI/CD 配置 | `ci: 添加 GitHub Actions` |
 | `build` | 构建系统变更 | `build: 更新构建配置` |
+
+## 简述 (Subject)
+
+- 使用中文
+- 不超过 50 个字符
+- 不以句号结尾
+- 使用动词开头：添加、修复、优化、重构
+
+## 正文 (Body) - 可选
+
+- 解释 **为什么** 做这个改动
+- 每行不超过 72 个字符
+
+## 脚注 (Footer) - 可选
+
+- 关联 Issue：`Closes #123`
+- 破坏性变更：`BREAKING CHANGE: xxx`
 
 ## 提交流程
 
@@ -84,10 +133,10 @@ git diff --cached --stat
 
 **规范要求**：
 
-- 使用中文
-- subject 不超过 50 个字符
-- 使用动词开头：添加、修复、优化、重构
-- 不以句号结尾
+- **逻辑拆分建议**：严禁提交巨大的“全家桶”提交。如果变更涉及多个模块，必须建议用户拆分为多个小提交。
+- **自动作用域推断**：在生成提示时，优先从文件路径中推断 `scope`（如 `src/views/login` -> `login`）。
+- **破坏性变更显式化**：必须在 body 中以 `BREAKING CHANGE:` 开头描述不兼容变更。
+- 提交必须经过测试，禁止提交未编译或未通过单测的代码。
 
 ### 步骤 4：执行提交
 
