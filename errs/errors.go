@@ -50,3 +50,17 @@ var (
 var (
 	ErrHTMLParseError = errors.New("htmlutil: failed to parse html")
 )
+
+// JWT 专用错误
+var (
+	// ErrJWTSecretEmpty 密钥为空
+	ErrJWTSecretEmpty = errors.New("jwt: secret is empty")
+	// ErrJWTTokenExpired 令牌过期
+	ErrJWTTokenExpired = errors.New("jwt: token is expired")
+	// ErrJWTTokenInvalid 令牌无效
+	ErrJWTTokenInvalid = errors.New("jwt: token is invalid")
+	// ErrJWTTokenMalformed 令牌格式错误
+	ErrJWTTokenMalformed = errors.New("jwt: token is malformed")
+	// ErrJWTClaimsInvalid Claims 无效
+	ErrJWTClaimsInvalid = errors.New("jwt: claims are invalid")
+)

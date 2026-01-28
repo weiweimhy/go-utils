@@ -81,6 +81,7 @@ GOPROXY=https://proxy.golang.org,direct go get github.com/weiweimhy/go-utils/v3@
 | `httputil` | 安全 HTTP 客户端 | 远程 API 调用 |
 | `fsutil` | 文件/目录操作 | 读写文件、自动创建父目录 |
 | `cryptoutil` | Hash &amp; Base64 | 数据校验、编码转换 |
+| `jwt` | JWT 用户鉴权认证 | Token 生成、验证、刷新 |
 | `mongo` | MongoDB 客户端（接口化） | 数据库 CRUD |
 | `localdb` | BBolt 本地 KV 存储 | 轻量本地存储 |
 | `htmlutil` | HTML DOM 解析 | 网页内容提取 |
@@ -304,6 +305,40 @@ if err != nil {
     if errors.Is(err, errs.ErrDownloadManagerClosed) {
         // 下载管理器已关闭
     }
+}
+```
+
+### 11. JWT 认证 (jwt)
+
+```go
+import (
+    "context"
+    "time"
+    "github.com/weiweimhy/go-utils/v3/jwt"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // 创建 JWT 实例
+    j, err := jwt.NewJWT(
+        jwt.WithSecret("your-256-bit-secret-key!!"),
+        jwt.WithAccessTokenExpiry(15 * time.Minute),
+        jwt.WithRefreshTokenExpiry(7 * 24 * time.Hour),
+    )
+    if err != nil {
+        panic(err)
+    }
+
+    // 生成令牌对
+    tokens, err := j.Generate(ctx, "user123", map[string]any{"role": "admin"})
+
+    // 验证令牌
+    claims, err := j.Validate(ctx, tokens.AccessToken)
+    fmt.Println(claims.UserID) // "user123"
+
+    // 刷新令牌
+    newTokens, err := j.Refresh(ctx, tokens.RefreshToken)
 }
 ```
 

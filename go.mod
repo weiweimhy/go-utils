@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/bytedance/sonic v1.11.0
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.5
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ocr v1.3.1
 	go.etcd.io/bbolt v1.4.3
