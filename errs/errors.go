@@ -55,6 +55,12 @@ var (
 var (
 	// ErrJWTSecretEmpty 密钥为空
 	ErrJWTSecretEmpty = errors.New("jwt: secret is empty")
+	// ErrJWTKeyMissing 签名/验证密钥缺失
+	ErrJWTKeyMissing = errors.New("jwt: signing or verification key is missing")
+	// ErrJWTPrivateKeyMissing 私钥缺失（用于签名）
+	ErrJWTPrivateKeyMissing = errors.New("jwt: private key is missing for signing")
+	// ErrJWTPublicKeyMissing 公钥缺失（用于验证）
+	ErrJWTPublicKeyMissing = errors.New("jwt: public key is missing for verification")
 	// ErrJWTTokenExpired 令牌过期
 	ErrJWTTokenExpired = errors.New("jwt: token is expired")
 	// ErrJWTTokenInvalid 令牌无效

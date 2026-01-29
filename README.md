@@ -310,6 +310,10 @@ if err != nil {
 
 ### 11. JWT 认证 (jwt)
 
+支持 **HMAC (HS256)** 和 **RSA (RS256)** 两种签名算法，适用于单体应用和分布式系统。
+
+#### HMAC 模式（对称加密）
+
 ```go
 import (
     "context"
@@ -341,6 +345,52 @@ func main() {
     newTokens, err := j.Refresh(ctx, tokens.RefreshToken)
 }
 ```
+
+#### RSA 模式（非对称加密，适合分布式系统）
+
+```go
+import (
+    "context"
+    "crypto/rsa"
+    "github.com/weiweimhy/go-utils/v3/jwt"
+)
+
+// 认证中心：使用私钥签发令牌
+func authCenter(privateKey *rsa.PrivateKey) {
+    ctx := context.Background()
+
+    j, _ := jwt.NewJWT(jwt.WithPrivateKey(privateKey))
+    tokens, _ := j.Generate(ctx, "user123", map[string]any{"role": "admin"})
+    // 返回 tokens 给客户端
+}
+
+// 业务服务：只需公钥验证令牌
+func businessService(publicKey *rsa.PublicKey, accessToken string) {
+    ctx := context.Background()
+
+    j, _ := jwt.NewJWT(jwt.WithPublicKey(publicKey))
+    claims, err := j.Validate(ctx, accessToken)
+    if err != nil {
+        // 验证失败
+        return
+    }
+    fmt.Println(claims.UserID) // "user123"
+}
+```
+
+#### 可用 Option
+
+| Option | 说明 |
+| :--- | :--- |
+| `WithSecret(string)` | HMAC 密钥 |
+| `WithPrivateKey(*rsa.PrivateKey)` | RSA 私钥（用于签名） |
+| `WithPublicKey(*rsa.PublicKey)` | RSA 公钥（用于验证） |
+| `WithPrivateKeyPEM([]byte)` | PEM 格式私钥 |
+| `WithPublicKeyPEM([]byte)` | PEM 格式公钥 |
+| `WithSigningMethod(jwt.SigningMethod)` | 自定义签名算法 |
+| `WithAccessTokenExpiry(time.Duration)` | 访问令牌有效期 |
+| `WithRefreshTokenExpiry(time.Duration)` | 刷新令牌有效期 |
+| `WithIssuer(string)` | 签发者标识 |
 
 ---
 

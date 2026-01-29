@@ -2,6 +2,9 @@ package jwt
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"time"
@@ -53,10 +56,19 @@ type Claims struct {
 
 // Config 包含 JWT 模块的配置参数。
 type Config struct {
-	Secret             string        `yaml:"secret"`               // 签名密钥，必须保密
+	Secret             string        `yaml:"secret"`               // HMAC 签名密钥，必须保密
 	AccessTokenExpiry  time.Duration `yaml:"access_token_expiry"`  // 访问令牌有效期，默认 15 分钟
 	RefreshTokenExpiry time.Duration `yaml:"refresh_token_expiry"` // 刷新令牌有效期，默认 7 天
 	Issuer             string        `yaml:"issuer"`               // 签发者名称，默认 "go-utils"
+
+	// RSA 密钥对，用于非对称签名（适合分布式场景）
+	PrivateKey *rsa.PrivateKey `yaml:"-"` // RSA 私钥，用于签名（认证中心持有）
+	PublicKey  *rsa.PublicKey  `yaml:"-"` // RSA 公钥，用于验证（业务服务持有）
+
+	// SigningMethod 签名算法，默认根据密钥类型自动选择
+	// - 提供 Secret 时默认 HS256
+	// - 提供 PrivateKey/PublicKey 时默认 RS256
+	SigningMethod jwt.SigningMethod `yaml:"-"`
 }
 
 // DefaultConfig 返回带有工业级合理默认值的配置。
@@ -71,7 +83,7 @@ func DefaultConfig() Config {
 // Option 是配置选项函数类型。
 type Option func(*Config)
 
-// WithSecret 设置签名密钥。
+// WithSecret 设置 HMAC 签名密钥。
 func WithSecret(secret string) Option {
 	return func(c *Config) {
 		c.Secret = secret
@@ -99,11 +111,79 @@ func WithIssuer(issuer string) Option {
 	}
 }
 
+// WithPrivateKey 设置 RSA 私钥（用于签名）。
+func WithPrivateKey(key *rsa.PrivateKey) Option {
+	return func(c *Config) {
+		c.PrivateKey = key
+	}
+}
+
+// WithPublicKey 设置 RSA 公钥（用于验证）。
+func WithPublicKey(key *rsa.PublicKey) Option {
+	return func(c *Config) {
+		c.PublicKey = key
+	}
+}
+
+// WithPrivateKeyPEM 从 PEM 格式的基础数据设置 RSA 私钥。
+func WithPrivateKeyPEM(keyData []byte) Option {
+	return func(c *Config) {
+		block, _ := pem.Decode(keyData)
+		if block == nil {
+			return
+		}
+
+		// 尝试多种 PEM 格式 (PKCS#1, PKCS#8)
+		if key, err := x509.ParsePKCS1PrivateKey(block.Bytes); err == nil {
+			c.PrivateKey = key
+			return
+		}
+
+		if key, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
+			if rsaKey, ok := key.(*rsa.PrivateKey); ok {
+				c.PrivateKey = rsaKey
+			}
+		}
+	}
+}
+
+// WithPublicKeyPEM 从 PEM 格式的数据设置 RSA 公钥。
+func WithPublicKeyPEM(keyData []byte) Option {
+	return func(c *Config) {
+		block, _ := pem.Decode(keyData)
+		if block == nil {
+			return
+		}
+
+		// 尝试多种格式 (PKIX, PKCS#1)
+		if key, err := x509.ParsePKIXPublicKey(block.Bytes); err == nil {
+			if pubKey, ok := key.(*rsa.PublicKey); ok {
+				c.PublicKey = pubKey
+			}
+			return
+		}
+
+		if key, err := x509.ParsePKCS1PublicKey(block.Bytes); err == nil {
+			c.PublicKey = key
+		}
+	}
+}
+
+// WithSigningMethod 设置签名算法。
+func WithSigningMethod(method jwt.SigningMethod) Option {
+	return func(c *Config) {
+		c.SigningMethod = method
+	}
+}
+
 type jwtImpl struct {
 	cfg Config
 }
 
 // NewJWT 创建并返回满足 IJWT 接口的实例。
+// 支持两种模式：
+//   - HMAC 模式：提供 Secret，使用 HS256 算法
+//   - RSA 模式：提供 PrivateKey 和/或 PublicKey，使用 RS256 算法
 func NewJWT(opts ...Option) (IJWT, error) {
 	defer logger.Trace(logger.L(), "jwt.NewJWT")()
 
@@ -112,12 +192,21 @@ func NewJWT(opts ...Option) (IJWT, error) {
 		opt(&cfg)
 	}
 
-	if cfg.Secret == "" {
+	// 自动选择签名方法
+	if cfg.SigningMethod == nil {
+		if cfg.PrivateKey != nil || cfg.PublicKey != nil {
+			cfg.SigningMethod = jwt.SigningMethodRS256
+		} else if cfg.Secret != "" {
+			cfg.SigningMethod = jwt.SigningMethodHS256
+		}
+	}
+
+	// 验证密钥配置
+	if cfg.Secret == "" && cfg.PrivateKey == nil && cfg.PublicKey == nil {
 		logger.L().Error("invalid param",
-			zap.String("error", "invalid_param"),
-			zap.String("param", "secret"),
+			zap.String("error", "key_missing"),
 			zap.String("func", "jwt.NewJWT"))
-		return nil, errs.ErrJWTSecretEmpty
+		return nil, errs.ErrJWTKeyMissing
 	}
 
 	return &jwtImpl{cfg: cfg}, nil
@@ -126,6 +215,11 @@ func NewJWT(opts ...Option) (IJWT, error) {
 // Generate 生成访问令牌和刷新令牌对。
 func (j *jwtImpl) Generate(ctx context.Context, userID string, extra map[string]any) (*TokenPair, error) {
 	defer logger.Trace(logger.L(), "jwt.Generate", zap.String("userID", userID))()
+
+	// 检查是否有签名密钥
+	if j.cfg.Secret == "" && j.cfg.PrivateKey == nil {
+		return nil, errs.ErrJWTPrivateKeyMissing
+	}
 
 	now := time.Now()
 	accessExpiresAt := now.Add(j.cfg.AccessTokenExpiry)
@@ -155,10 +249,25 @@ func (j *jwtImpl) Validate(ctx context.Context, tokenString string) (*Claims, er
 	defer logger.Trace(logger.L(), "jwt.Validate")()
 
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		// 根据 token 的签名方法返回对应的验证密钥
+		switch token.Method.(type) {
+		case *jwt.SigningMethodHMAC:
+			if j.cfg.Secret == "" {
+				return nil, fmt.Errorf("HMAC secret not configured")
+			}
+			return []byte(j.cfg.Secret), nil
+		case *jwt.SigningMethodRSA:
+			if j.cfg.PublicKey != nil {
+				return j.cfg.PublicKey, nil
+			}
+			// 如果只有私钥，可以从私钥提取公钥
+			if j.cfg.PrivateKey != nil {
+				return &j.cfg.PrivateKey.PublicKey, nil
+			}
+			return nil, errs.ErrJWTPublicKeyMissing
+		default:
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(j.cfg.Secret), nil
 	})
 
 	if err != nil {
@@ -210,6 +319,18 @@ func (j *jwtImpl) generateToken(userID string, tokenType TokenType, extra map[st
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(j.cfg.Secret))
+	token := jwt.NewWithClaims(j.cfg.SigningMethod, claims)
+
+	// 根据签名方法选择密钥
+	switch j.cfg.SigningMethod.(type) {
+	case *jwt.SigningMethodHMAC:
+		return token.SignedString([]byte(j.cfg.Secret))
+	case *jwt.SigningMethodRSA:
+		if j.cfg.PrivateKey == nil {
+			return "", errs.ErrJWTPrivateKeyMissing
+		}
+		return token.SignedString(j.cfg.PrivateKey)
+	default:
+		return "", fmt.Errorf("unsupported signing method: %v", j.cfg.SigningMethod.Alg())
+	}
 }
