@@ -2,14 +2,13 @@ package wechat
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
-	"github.com/bytedance/sonic"
 	"github.com/weiweimhy/go-utils/v3/httputil"
 	"github.com/weiweimhy/go-utils/v3/logger"
-	"go.uber.org/zap"
 )
 
 type WeChatSession struct {
@@ -24,7 +23,7 @@ const JSCODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session?appid=%
 
 // GetSession 获取微信会话信息，支持 Context 取消
 func GetSession(ctx context.Context, appid, secret, js_code string) (WeChatSession, error) {
-	defer logger.Trace(zap.L(), "wechat.GetSession")()
+	defer logger.Trace(logger.L(), "wechat.GetSession")()
 
 	if appid == "" || secret == "" || js_code == "" {
 		return WeChatSession{}, fmt.Errorf("appid, secret and js_code are required")
@@ -57,7 +56,7 @@ func GetSession(ctx context.Context, appid, secret, js_code string) (WeChatSessi
 	}
 
 	var session WeChatSession
-	if err := sonic.Unmarshal(body, &session); err != nil {
+	if err := json.Unmarshal(body, &session); err != nil {
 		return WeChatSession{}, fmt.Errorf("failed to decode response: %w", err)
 	}
 

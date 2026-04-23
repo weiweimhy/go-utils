@@ -105,7 +105,12 @@ func (dm *DownloadManager) StartWithConfig(ctx context.Context, workers, bufferS
 	}
 
 	dm.ctx, dm.cancel = context.WithCancel(ctx)
-	dm.pool = task.NewWorkerPool(dm.ctx, workers, bufferSize)
+	dm.pool = task.NewWorkerPool(
+		dm.ctx,
+		task.WithWorkerCount(workers),
+		task.WithBufferSize(bufferSize),
+		task.WithName("download-manager"),
+	)
 
 	logger.L().Info("download manager started",
 		zap.Int("workers", workers),
@@ -206,7 +211,7 @@ func downloadFile(ctx context.Context, client *http.Client, url string, path str
 		return fmt.Errorf("http error: status %d", resp.StatusCode)
 	}
 
-	if err := fsutil.CreateDir(path); err != nil {
+	if err := fsutil.CreateParentDir(path); err != nil {
 		return fmt.Errorf("create dir failed: %w", err)
 	}
 

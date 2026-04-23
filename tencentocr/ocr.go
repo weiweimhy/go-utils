@@ -1,4 +1,4 @@
-package tencentOCR
+package tencentocr
 
 import (
 	"context"
@@ -46,7 +46,7 @@ func NewClient(config Config) (IOCRClient, error) {
 }
 
 func (c *clientImpl) GetPdfInvoiceData(ctx context.Context, data *string, isPdf bool) (*ocr.VatInvoiceOCRResponse, error) {
-	defer logger.Trace(logger.L(), "tencentOCR.GetPdfInvoiceData")()
+	defer logger.Trace(logger.L(), "tencentocr.GetPdfInvoiceData")()
 	request := ocr.NewVatInvoiceOCRRequest()
 	request.IsPdf = &isPdf
 	request.ImageBase64 = data
@@ -54,14 +54,14 @@ func (c *clientImpl) GetPdfInvoiceData(ctx context.Context, data *string, isPdf 
 }
 
 func (c *clientImpl) GetOfdInvoiceData(ctx context.Context, data *string) (*ocr.VerifyOfdVatInvoiceOCRResponse, error) {
-	defer logger.Trace(logger.L(), "tencentOCR.GetOfdInvoiceData")()
+	defer logger.Trace(logger.L(), "tencentocr.GetOfdInvoiceData")()
 	request := ocr.NewVerifyOfdVatInvoiceOCRRequest()
 	request.OfdFileBase64 = data
 	return c.VerifyOfdVatInvoiceOCRWithContext(ctx, request)
 }
 
 func (c *clientImpl) GetGeneralAccurateData(ctx context.Context, data *string) (*ocr.GeneralAccurateOCRResponse, error) {
-	defer logger.Trace(logger.L(), "tencentOCR.GetGeneralAccurateData")()
+	defer logger.Trace(logger.L(), "tencentocr.GetGeneralAccurateData")()
 	request := ocr.NewGeneralAccurateOCRRequest()
 	request.ImageBase64 = data
 	return c.GeneralAccurateOCRWithContext(ctx, request)

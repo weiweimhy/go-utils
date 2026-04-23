@@ -1,7 +1,7 @@
 # Go-Utils
 
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D1.24-blue.svg)](https://golang.org)
-[![Go Reference](https://pkg.go.dev/badge/github.com/weiweimhy/go-utils.svg)](https://pkg.go.dev/github.com/weiweimhy/go-utils)
+[![Go Reference](https://pkg.go.dev/badge/github.com/weiweimhy/go-utils/v3.svg)](https://pkg.go.dev/github.com/weiweimhy/go-utils/v3)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 `go-utils` 是一个工业级的通用 Go 语言封装库，旨在提供稳健、高性能且易于测试的基础组件。
@@ -9,9 +9,9 @@
 ## 🚀 核心特性
 
 - **模块化设计**：功能拆分清晰，按需导入
-- **全链路 Context**：原生支持生命周期管控与超时控制
+- **关键链路 Context**：网络、数据库、并发任务等关键链路原生支持生命周期管控与超时控制
 - **Mock-Ready**：关键组件抽象为接口，方便单元测试
-- **高性能**：集成 `zap`（日志）、`sonic`（JSON）、`bbolt`（KV存储）
+- **工程化基础**：集成 `zap`（日志）、`bbolt`（KV存储）等稳定依赖
 - **内存优化**：Epub 模块采用流式处理，轻松应对超大文件
 
 ## 📋 环境要求
@@ -129,8 +129,17 @@ import (
 func main() {
     ctx := context.Background()
 
-    // 创建工作池：10 个 worker，缓冲区 100
-    pool := task.NewWorkerPool(ctx, 10, 100)
+    // 使用默认配置：worker 数和缓冲区都为 CPU 核心数
+    defaultPool := task.NewWorkerPool(ctx)
+    defer defaultPool.Close(5 * time.Second)
+
+    // 创建工作池：10 个 worker，缓冲区 100，并附带业务名称
+    pool := task.NewWorkerPool(
+        ctx,
+        task.WithWorkerCount(10),
+        task.WithBufferSize(100),
+        task.WithName("batch-process"),
+    )
     defer pool.Close(5 * time.Second)
 
     // 提交单个任务
@@ -396,9 +405,9 @@ func businessService(publicKey *rsa.PublicKey, accessToken string) {
 
 ## 🛡 开发规范
 
-1. **必传 Context**：所有 IO 操作必须接收 `context` 参数
-2. **使用 logger.L()**：禁止直接使用 `zap.L()`
-3. **接口编程**：注入依赖时使用 `IMongoClient` 等接口
+1. **优先传递 Context**：网络、数据库、并发任务等长生命周期操作应接收 `context` 参数
+2. **统一日志入口**：默认使用 `logger.L()` 或 `logger.FromContext()`
+3. **接口编程**：注入依赖时优先使用 `IMongoClient` 等接口
 
 ---
 

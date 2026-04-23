@@ -24,7 +24,7 @@ func SaveToFile(path string, data []byte) error {
 
 // SaveToFileWithPerm 保存数据到文件，并指定权限。
 func SaveToFileWithPerm(path string, data []byte, perm os.FileMode) error {
-	err := CreateDir(path)
+	err := CreateParentDir(path)
 	if err != nil {
 		return err
 	}

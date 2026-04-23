@@ -44,7 +44,12 @@ func BenchmarkJWT(b *testing.B) {
 
 func BenchmarkWorkerPool(b *testing.B) {
 	ctx := context.Background()
-	pool := task.NewWorkerPool(ctx, 10, 100)
+	pool := task.NewWorkerPool(
+		ctx,
+		task.WithWorkerCount(10),
+		task.WithBufferSize(100),
+		task.WithName("benchmark"),
+	)
 	defer pool.Close(time.Second)
 
 	b.ResetTimer()

@@ -1,11 +1,11 @@
-package localDB
+package localdb
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strconv"
 	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/weiweimhy/go-utils/v3/fsutil"
 	"go.etcd.io/bbolt"
 )
@@ -43,7 +43,7 @@ func (db *LocalDB) Set(bucket, key string, value []byte) error {
 }
 
 func (db *LocalDB) SetJSON(bucket, key string, v interface{}) error {
-	data, err := sonic.Marshal(v)
+	data, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (db *LocalDB) GetJSON(bucket, key string, out interface{}) error {
 	if err != nil || data == nil {
 		return err
 	}
-	return sonic.Unmarshal(data, out)
+	return json.Unmarshal(data, out)
 }
 
 func (db *LocalDB) SetInt(bucket, key string, value int) error {
