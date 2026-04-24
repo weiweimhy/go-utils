@@ -1,17 +1,17 @@
 # Go-Utils
 
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D1.24-blue.svg)](https://golang.org)
-[![Go Reference](https://pkg.go.dev/badge/github.com/weiweimhy/go-utils/v3.svg)](https://pkg.go.dev/github.com/weiweimhy/go-utils/v3)
+[![Go Reference](https://pkg.go.dev/badge/github.com/weiweimhy/go-utils/v4.svg)](https://pkg.go.dev/github.com/weiweimhy/go-utils/v4)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-`go-utils` 是一个工业级的通用 Go 语言封装库，旨在提供稳健、高性能且易于测试的基础组件。
+`go-utils` 是一个面向工程复用的 Go 语言工具库，主模块聚焦通用基础组件，外部集成按子模块拆分维护。
 
 ## 🚀 核心特性
 
-- **模块化设计**：功能拆分清晰，按需导入
+- **模块收敛**：主模块只保留通用能力，重依赖集成拆为独立子模块
 - **关键链路 Context**：网络、数据库、并发任务等关键链路原生支持生命周期管控与超时控制
 - **Mock-Ready**：关键组件抽象为接口，方便单元测试
-- **工程化基础**：集成 `zap`（日志）、`bbolt`（KV存储）等稳定依赖
+- **默认低副作用**：通用包默认不主动打印日志，日志能力按需启用
 - **内存优化**：Epub 模块采用流式处理，轻松应对超大文件
 
 ## 📋 环境要求
@@ -21,28 +21,36 @@
 ## 📦 安装
 
 ```bash
-go get github.com/weiweimhy/go-utils/v3
+go get github.com/weiweimhy/go-utils/v4
+```
+
+### 安装外部集成子模块
+
+```bash
+go get github.com/weiweimhy/go-utils/v4/mongo
+go get github.com/weiweimhy/go-utils/v4/wechat
+go get github.com/weiweimhy/go-utils/v4/tencentocr
 ```
 
 ### 升级到最新版本
 
 ```bash
-go get -u github.com/weiweimhy/go-utils/v3
+go get -u github.com/weiweimhy/go-utils/v4
 go mod tidy
 ```
 
 ### 安装指定版本
 
 ```bash
-go get github.com/weiweimhy/go-utils/v3@v3.2.0
+go get github.com/weiweimhy/go-utils/v4@v4.0.0
 ```
 
-### 从 v2.x 或无后缀版本迁移
+### 从 v3.x 或更早版本迁移
 
 1. 更新 go.mod 中的依赖：
 
    ```bash
-   go get github.com/weiweimhy/go-utils/v3@latest
+   go get github.com/weiweimhy/go-utils/v4@latest
    ```
 
 2. 更新所有 import 路径，添加 `/v3` 后缀：
@@ -51,8 +59,8 @@ go get github.com/weiweimhy/go-utils/v3@v3.2.0
    // 旧版本
    import "github.com/weiweimhy/go-utils/logger"
 
-   // 新版本 (v3.x)
-   import "github.com/weiweimhy/go-utils/v3/logger"
+   // 新版本 (v4.x)
+   import "github.com/weiweimhy/go-utils/v4/logger"
    ```
 
 3. 执行 `go mod tidy` 清理依赖
@@ -66,7 +74,7 @@ go get github.com/weiweimhy/go-utils/v3@v3.2.0
 go clean -modcache
 
 # 或仅清除本项目缓存后重新拉取
-GOPROXY=https://proxy.golang.org,direct go get github.com/weiweimhy/go-utils/v3@v3.2.0
+GOPROXY=https://proxy.golang.org,direct go get github.com/weiweimhy/go-utils/v4@v4.0.0
 ```
 
 ---
@@ -82,13 +90,29 @@ GOPROXY=https://proxy.golang.org,direct go get github.com/weiweimhy/go-utils/v3@
 | `fsutil` | 文件/目录操作 | 读写文件、自动创建父目录 |
 | `cryptoutil` | Hash &amp; Base64 | 数据校验、编码转换 |
 | `jwt` | JWT 用户鉴权认证 | Token 生成、验证、刷新 |
-| `mongo` | MongoDB 客户端（接口化） | 数据库 CRUD |
 | `localdb` | BBolt 本地 KV 存储 | 轻量本地存储 |
 | `htmlutil` | HTML DOM 解析 | 网页内容提取 |
-| `tencentocr` | 腾讯 OCR 封装 | 发票识别、文字提取 |
 | `errs` | 预定义错误 | 统一错误处理 |
 
 ---
+
+## 📚 包分层建议
+
+- **核心工具**：`cryptoutil`、`fsutil`、`regexputil`、`htmlutil`、`runtimeutil`
+- **基础设施**：`task`、`httputil`、`logger`、`localdb`、`download`、`jwt`
+- **外部集成子模块**：`github.com/weiweimhy/go-utils/v4/mongo`、`github.com/weiweimhy/go-utils/v4/wechat`、`github.com/weiweimhy/go-utils/v4/tencentocr`
+
+如果你只需要轻量工具，优先依赖主模块；外部集成请按需引入对应子模块，避免把数据库驱动和云厂商 SDK 带进主模块。
+
+## 🧭 发布策略
+
+- 根模块：只承载通用工具与轻依赖基础设施能力
+- 子模块：承载数据库、第三方平台、云厂商 SDK 等重依赖集成
+- 不兼容变更：优先通过新 major 版本处理，而不是在同一 major 下保留大量历史兼容别名
+- 文档入口：
+  - `mongo`：[mongo/README.md](/E:/go/go-utils/mongo/README.md)
+  - `wechat`：[wechat/README.md](/E:/go/go-utils/wechat/README.md)
+  - `tencentocr`：[tencentocr/README.md](/E:/go/go-utils/tencentocr/README.md)
 
 ## 📖 快速上手
 
@@ -96,7 +120,7 @@ GOPROXY=https://proxy.golang.org,direct go get github.com/weiweimhy/go-utils/v3@
 
 ```go
 import (
-    "github.com/weiweimhy/go-utils/v3/logger"
+    "github.com/weiweimhy/go-utils/v4/logger"
     "go.uber.org/zap"
 )
 
@@ -123,7 +147,8 @@ func main() {
 import (
     "context"
     "time"
-    "github.com/weiweimhy/go-utils/v3/task"
+    "github.com/weiweimhy/go-utils/v4/logger"
+    "github.com/weiweimhy/go-utils/v4/task"
 )
 
 func main() {
@@ -139,6 +164,7 @@ func main() {
         task.WithWorkerCount(10),
         task.WithBufferSize(100),
         task.WithName("batch-process"),
+        task.WithLogger(logger.L()),
     )
     defer pool.Close(5 * time.Second)
 
@@ -165,13 +191,17 @@ func main() {
 ```go
 import (
     "context"
-    "github.com/weiweimhy/go-utils/v3/download"
+    "github.com/weiweimhy/go-utils/v4/download"
+    "github.com/weiweimhy/go-utils/v4/logger"
 )
 
 func main() {
     ctx := context.Background()
 
-    dm := download.NewDownloadManager(download.WithWorkers(5))
+    dm := download.NewDownloadManager(
+        download.WithWorkers(5),
+        download.WithLogger(logger.L()),
+    )
     dm.Start(ctx)
     defer dm.Close()
 
@@ -186,42 +216,42 @@ func main() {
 ```go
 import (
     "context"
-    "github.com/weiweimhy/go-utils/v3/httputil"
+    "github.com/weiweimhy/go-utils/v4/httputil"
 )
 
 func main() {
     ctx := context.Background()
 
     // 获取字节流
-    data, err := httputil.GetBytesFromUrl(ctx, "https://api.example.com/data")
+    data, err := httputil.GetBytesFromURL(ctx, "https://api.example.com/data")
 
     // 获取字符串
-    html, err := httputil.GetStringFromUrl(ctx, "https://example.com")
+    html, err := httputil.GetStringFromURL(ctx, "https://example.com")
 }
 ```
 
 ### 5. 文件操作 (fsutil)
 
 ```go
-import "github.com/weiweimhy/go-utils/v3/fsutil"
+import "github.com/weiweimhy/go-utils/v4/fsutil"
 
 // 保存文件（自动创建父目录）
 err := fsutil.SaveToFile("./data/output/result.json", data)
 
 // 检查文件是否存在
-exists := fsutil.IsFileExist("./config.json")
+exists := fsutil.FileExists("./config.json")
 
 // 获取文件的 Base64 编码
 base64Str, err := fsutil.GetFileBase64("./image.png")
 ```
 
-### 6. MongoDB (mongo)
+### 6. MongoDB (独立子模块)
 
 ```go
 import (
     "context"
     "time"
-    "github.com/weiweimhy/go-utils/v3/mongo"
+    "github.com/weiweimhy/go-utils/v4/mongo"
 )
 
 func main() {
@@ -229,7 +259,7 @@ func main() {
 
     // 创建客户端（超时有默认值）
     client, err := mongo.NewClient(ctx, mongo.Config{
-        Uri:          "mongodb://localhost:27017",
+        URI:          "mongodb://localhost:27017",
         DatabaseName: "mydb",
     })
     if err != nil {
@@ -246,7 +276,7 @@ func main() {
 ### 7. 本地 KV 存储 (localdb)
 
 ```go
-import "github.com/weiweimhy/go-utils/v3/localdb"
+import "github.com/weiweimhy/go-utils/v4/localdb"
 
 // 打开数据库
 db, err := localdb.Open("./data", "cache.db")
@@ -260,14 +290,14 @@ db.Set("bucket", "key", []byte("value"))
 data, _ := db.Get("bucket", "key")
 
 // JSON 序列化存取
-db.SetJSON("users", "user:1", user)
-db.GetJSON("users", "user:1", &user)
+db.SetJSONValue("users", "user:1", user)
+db.GetJSONValue("users", "user:1", &user)
 ```
 
 ### 8. HTML 解析 (htmlutil)
 
 ```go
-import "github.com/weiweimhy/go-utils/v3/htmlutil"
+import "github.com/weiweimhy/go-utils/v4/htmlutil"
 
 html := `<div class="content"><p>Hello</p><p>World</p></div>`
 
@@ -288,14 +318,14 @@ allText, err := htmlutil.ExtractAllText(html)
 ### 9. 加密工具 (cryptoutil)
 
 ```go
-import "github.com/weiweimhy/go-utils/v3/cryptoutil"
+import "github.com/weiweimhy/go-utils/v4/cryptoutil"
 
 // SHA256 哈希
-hash := cryptoutil.StringToHash("hello")      // 完整 64 字符
-short := cryptoutil.StringToHash16("hello")  // 前 16 字符
+hash := cryptoutil.SHA256HexFromString("hello")     // 完整 64 字符
+short := cryptoutil.SHA256Hex16FromString("hello")  // 前 16 字符
 
 // Base64 编码
-encoded := cryptoutil.GetBase64FromBytes(data)
+encoded := cryptoutil.Base64FromBytes(data)
 ```
 
 ### 10. 错误处理 (errs)
@@ -303,7 +333,7 @@ encoded := cryptoutil.GetBase64FromBytes(data)
 ```go
 import (
     "errors"
-    "github.com/weiweimhy/go-utils/v3/errs"
+    "github.com/weiweimhy/go-utils/v4/errs"
 )
 
 // 使用预定义错误
@@ -327,7 +357,7 @@ if err != nil {
 import (
     "context"
     "time"
-    "github.com/weiweimhy/go-utils/v3/jwt"
+    "github.com/weiweimhy/go-utils/v4/jwt"
 )
 
 func main() {
@@ -361,7 +391,7 @@ func main() {
 import (
     "context"
     "crypto/rsa"
-    "github.com/weiweimhy/go-utils/v3/jwt"
+    "github.com/weiweimhy/go-utils/v4/jwt"
 )
 
 // 认证中心：使用私钥签发令牌
@@ -406,8 +436,8 @@ func businessService(publicKey *rsa.PublicKey, accessToken string) {
 ## 🛡 开发规范
 
 1. **优先传递 Context**：网络、数据库、并发任务等长生命周期操作应接收 `context` 参数
-2. **统一日志入口**：默认使用 `logger.L()` 或 `logger.FromContext()`
-3. **接口编程**：注入依赖时优先使用 `IMongoClient` 等接口
+2. **日志按需启用**：通用包默认保持静默，业务侧需要时显式注入 logger
+3. **优先清晰 API**：公共包优先暴露明确的具体类型，避免为封装而封装
 
 ---
 
