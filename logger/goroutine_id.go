@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-// GetGoroutineID 获取当前 goroutine ID，用于调试日志
-// 注意：此方法仅用于调试和日志记录，不要在业务逻辑中依赖 goroutine ID
-func GetGoroutineID() uint64 {
+// GoroutineID returns the current goroutine ID for debugging and logging only.
+// Do not rely on goroutine IDs in business logic.
+func GoroutineID() uint64 {
 	var buf [64]byte
 	n := runtime.Stack(buf[:], false)
 	// 格式: "goroutine 123 [running]:\n..."

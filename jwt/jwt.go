@@ -10,9 +10,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/weiweimhy/go-utils/v3/errs"
-	"github.com/weiweimhy/go-utils/v3/logger"
-	"go.uber.org/zap"
+	"github.com/weiweimhy/go-utils/v4/errs"
 )
 
 // TokenType 定义令牌类型
@@ -24,20 +22,6 @@ const (
 	// TokenTypeRefresh 刷新令牌
 	TokenTypeRefresh TokenType = "refresh"
 )
-
-// IJWT 定义了 JWT 操作的标准接口，提供令牌生成、验证和刷新功能。
-type IJWT interface {
-	// Generate 生成访问令牌和刷新令牌对。
-	// userID: 用户唯一标识
-	// extra: 需要存储在令牌中的额外声明信息
-	Generate(ctx context.Context, userID string, extra map[string]any) (*TokenPair, error)
-	// Validate 验证令牌的有效性并返回其中的 Claims。
-	// token: 待验证的 JWT 字符串（可以是 AccessToken 或 RefreshToken）
-	Validate(ctx context.Context, token string) (*Claims, error)
-	// Refresh 使用刷新令牌获取一对新的访问令牌和刷新令牌。
-	// 会提取旧 RefreshToken 中的 UserID 和 Extra 信息。
-	Refresh(ctx context.Context, refreshToken string) (*TokenPair, error)
-}
 
 // TokenPair 包含一对生成的令牌及其过期信息。
 type TokenPair struct {
@@ -176,17 +160,16 @@ func WithSigningMethod(method jwt.SigningMethod) Option {
 	}
 }
 
-type jwtImpl struct {
+// JWT provides token generation, validation, and refresh helpers.
+type JWT struct {
 	cfg Config
 }
 
-// NewJWT 创建并返回满足 IJWT 接口的实例。
+// NewJWT 创建并返回 JWT 实例。
 // 支持两种模式：
 //   - HMAC 模式：提供 Secret，使用 HS256 算法
 //   - RSA 模式：提供 PrivateKey 和/或 PublicKey，使用 RS256 算法
-func NewJWT(opts ...Option) (IJWT, error) {
-	defer logger.Trace(logger.L(), "jwt.NewJWT")()
-
+func NewJWT(opts ...Option) (*JWT, error) {
 	cfg := DefaultConfig()
 	for _, opt := range opts {
 		opt(&cfg)
@@ -203,19 +186,14 @@ func NewJWT(opts ...Option) (IJWT, error) {
 
 	// 验证密钥配置
 	if cfg.Secret == "" && cfg.PrivateKey == nil && cfg.PublicKey == nil {
-		logger.L().Error("invalid param",
-			zap.String("error", "key_missing"),
-			zap.String("func", "jwt.NewJWT"))
 		return nil, errs.ErrJWTKeyMissing
 	}
 
-	return &jwtImpl{cfg: cfg}, nil
+	return &JWT{cfg: cfg}, nil
 }
 
 // Generate 生成访问令牌和刷新令牌对。
-func (j *jwtImpl) Generate(ctx context.Context, userID string, extra map[string]any) (*TokenPair, error) {
-	defer logger.Trace(logger.L(), "jwt.Generate", zap.String("userID", userID))()
-
+func (j *JWT) Generate(ctx context.Context, userID string, extra map[string]any) (*TokenPair, error) {
 	// 检查是否有签名密钥
 	if j.cfg.Secret == "" && j.cfg.PrivateKey == nil {
 		return nil, errs.ErrJWTPrivateKeyMissing
@@ -245,9 +223,7 @@ func (j *jwtImpl) Generate(ctx context.Context, userID string, extra map[string]
 }
 
 // Validate 验证令牌并返回 Claims。
-func (j *jwtImpl) Validate(ctx context.Context, tokenString string) (*Claims, error) {
-	defer logger.Trace(logger.L(), "jwt.Validate")()
-
+func (j *JWT) Validate(ctx context.Context, tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		// 根据 token 的签名方法返回对应的验证密钥
 		switch token.Method.(type) {
@@ -289,9 +265,7 @@ func (j *jwtImpl) Validate(ctx context.Context, tokenString string) (*Claims, er
 }
 
 // Refresh 使用刷新令牌获取新的令牌对。
-func (j *jwtImpl) Refresh(ctx context.Context, refreshToken string) (*TokenPair, error) {
-	defer logger.Trace(logger.L(), "jwt.Refresh")()
-
+func (j *JWT) Refresh(ctx context.Context, refreshToken string) (*TokenPair, error) {
 	claims, err := j.Validate(ctx, refreshToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate refresh token: %w", err)
@@ -305,7 +279,7 @@ func (j *jwtImpl) Refresh(ctx context.Context, refreshToken string) (*TokenPair,
 }
 
 // generateToken 生成单个令牌。
-func (j *jwtImpl) generateToken(userID string, tokenType TokenType, extra map[string]any, expiresAt time.Time) (string, error) {
+func (j *JWT) generateToken(userID string, tokenType TokenType, extra map[string]any, expiresAt time.Time) (string, error) {
 	claims := &Claims{
 		UserID:    userID,
 		TokenType: tokenType,

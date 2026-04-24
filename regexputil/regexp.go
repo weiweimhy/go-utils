@@ -2,25 +2,18 @@ package regexputil
 
 import (
 	"regexp"
-	"sync"
 )
 
-var (
-	cache sync.Map
-)
-
-func getRegexp(pattern string) *regexp.Regexp {
-	if v, ok := cache.Load(pattern); ok {
-		return v.(*regexp.Regexp)
-	}
-
-	reg := regexp.MustCompile(pattern)
-	cache.Store(pattern, reg)
-	return reg
+func compileRegexp(pattern string) (*regexp.Regexp, error) {
+	return regexp.Compile(pattern)
 }
 
-func GetRegexpMatches(str, pattern string) []string {
-	reg := getRegexp(pattern)
+// FindMatches returns regexp matches or a compile error for invalid patterns.
+func FindMatches(str, pattern string) ([]string, error) {
+	reg, err := compileRegexp(pattern)
+	if err != nil {
+		return nil, err
+	}
 	matches := reg.FindAllStringSubmatch(str, -1)
 	rets := make([]string, len(matches))
 	for i, match := range matches {
@@ -30,10 +23,32 @@ func GetRegexpMatches(str, pattern string) []string {
 			rets[i] = match[0]
 		}
 	}
+	return rets, nil
+}
+
+// MustFindMatches returns regexp matches and hides invalid-pattern errors by returning nil.
+func MustFindMatches(str, pattern string) []string {
+	rets, err := FindMatches(str, pattern)
+	if err != nil {
+		return nil
+	}
 	return rets
 }
 
-func RegexpReplaceAll(str, pattern, newStr string) string {
-	reg := getRegexp(pattern)
-	return reg.ReplaceAllString(str, newStr)
+// ReplaceAll replaces all regexp matches or returns a compile error for invalid patterns.
+func ReplaceAll(str, pattern, newStr string) (string, error) {
+	reg, err := compileRegexp(pattern)
+	if err != nil {
+		return "", err
+	}
+	return reg.ReplaceAllString(str, newStr), nil
+}
+
+// MustReplaceAll replaces all regexp matches and hides invalid-pattern errors by returning the input.
+func MustReplaceAll(str, pattern, newStr string) string {
+	ret, err := ReplaceAll(str, pattern, newStr)
+	if err != nil {
+		return str
+	}
+	return ret
 }

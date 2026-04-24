@@ -10,31 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v3/errs"
-	"github.com/weiweimhy/go-utils/v3/logger"
+	"github.com/weiweimhy/go-utils/v4/errs"
 )
-
-func init() {
-	logger.Init()
-}
-
-// MockJWT 实现了 IJWT 接口，用于测试。
-type MockJWT struct {
-	IJWT
-}
-
-func (m *MockJWT) Generate(ctx context.Context, userID string, extra map[string]any) (*TokenPair, error) {
-	return &TokenPair{
-		AccessToken:  "mock-access-token",
-		RefreshToken: "mock-refresh-token",
-		ExpiresAt:    time.Now().Add(15 * time.Minute),
-	}, nil
-}
-
-func TestIJWTInterface(t *testing.T) {
-	// 验证 MockJWT 是否满足接口
-	var _ IJWT = (*MockJWT)(nil)
-}
 
 func TestNewJWT(t *testing.T) {
 	tests := []struct {

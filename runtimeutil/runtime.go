@@ -1,12 +1,14 @@
 package runtimeutil
 
 import (
-	"fmt"
 	"runtime/debug"
 )
 
-func GetVersion() {
+// GetVersion returns the main module version from build info.
+// It returns an empty string when build metadata is unavailable.
+func GetVersion() string {
 	if info, ok := debug.ReadBuildInfo(); ok {
-		fmt.Println(info.Main.Version)
+		return info.Main.Version
 	}
+	return ""
 }

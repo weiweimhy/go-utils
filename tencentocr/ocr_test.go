@@ -4,7 +4,7 @@ import "testing"
 
 func TestNewClient(t *testing.T) {
 	client, err := NewClient(Config{
-		SecretId:  "id",
+		SecretID:  "id",
 		SecretKey: "key",
 	})
 	if err != nil {

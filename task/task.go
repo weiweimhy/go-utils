@@ -2,28 +2,28 @@ package task
 
 import "context"
 
-// Task 定义了可执行任务的接口
+// Task represents a unit of work executed with a context.
 type Task interface {
 	Execute(ctx context.Context)
 }
 
-// TaskFunc 是 Task 接口的函数适配器，方便使用闭包作为任务
+// TaskFunc adapts a function so it can be used as a Task.
 type TaskFunc func(ctx context.Context)
 
-// Execute 实现 Task 接口
+// Execute runs f.
 func (f TaskFunc) Execute(ctx context.Context) {
 	f(ctx)
 }
 
-// TaskWithError 定义了可返回错误的任务接口
+// TaskWithError represents a unit of work that may return an error.
 type TaskWithError interface {
 	Execute(ctx context.Context) error
 }
 
-// TaskFuncWithError 是 TaskWithError 接口的函数适配器
+// TaskFuncWithError adapts a function so it can be used as a TaskWithError.
 type TaskFuncWithError func(ctx context.Context) error
 
-// Execute 实现 TaskWithError 接口
+// Execute runs f.
 func (f TaskFuncWithError) Execute(ctx context.Context) error {
 	return f(ctx)
 }

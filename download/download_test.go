@@ -90,3 +90,19 @@ func TestDownloadManager_WithWorkers(t *testing.T) {
 
 	// 注意：dm.pool 的内部 workers 无法直接获取，但我们可以通过 fields 确认配置已正确传递
 }
+
+func TestDownloadManager_StartWithNilContext(t *testing.T) {
+	dm := NewDownloadManager()
+
+	if err := dm.Start(nil); err != nil {
+		t.Fatalf("expected nil context to be accepted, got error: %v", err)
+	}
+	defer dm.Close()
+
+	if dm.pool == nil {
+		t.Fatal("pool should not be nil after Start(nil)")
+	}
+	if dm.ctx == nil {
+		t.Fatal("manager context should be initialized")
+	}
+}

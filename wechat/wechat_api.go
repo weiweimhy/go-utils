@@ -7,11 +7,11 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/weiweimhy/go-utils/v3/httputil"
-	"github.com/weiweimhy/go-utils/v3/logger"
+	"github.com/weiweimhy/go-utils/v4/httputil"
 )
 
-type WeChatSession struct {
+// Session represents a WeChat mini-program session response.
+type Session struct {
 	OpenID     string `json:"openid"`
 	SessionKey string `json:"session_key"`
 	UnionID    string `json:"unionid"`
@@ -19,26 +19,24 @@ type WeChatSession struct {
 	ErrMsg     string `json:"errmsg"`
 }
 
-const JSCODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code"
+const JSCode2SessionURL = "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code"
 
-// GetSession 获取微信会话信息，支持 Context 取消
-func GetSession(ctx context.Context, appid, secret, js_code string) (WeChatSession, error) {
-	defer logger.Trace(logger.L(), "wechat.GetSession")()
-
-	if appid == "" || secret == "" || js_code == "" {
-		return WeChatSession{}, fmt.Errorf("appid, secret and js_code are required")
+// GetSession fetches a WeChat mini-program session and supports context cancellation.
+func GetSession(ctx context.Context, appID, secret, jsCode string) (Session, error) {
+	if appID == "" || secret == "" || jsCode == "" {
+		return Session{}, fmt.Errorf("appID, secret and jsCode are required")
 	}
 
-	url := fmt.Sprintf(JSCODE2SESSION_URL, appid, secret, js_code)
+	url := fmt.Sprintf(JSCode2SessionURL, appID, secret, jsCode)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return WeChatSession{}, err
+		return Session{}, err
 	}
 
-	// 注意：此处直接使用 http.NewRequestWithContext 配合 DefaultHttpClient
-	rsp, err := httputil.DefaultHttpClient.Do(req)
+	// 注意：此处直接使用 http.NewRequestWithContext 配合默认 HTTP 客户端
+	rsp, err := httputil.DefaultHTTPClient.Do(req)
 	if err != nil {
-		return WeChatSession{}, fmt.Errorf("failed to request wechat api: %w", err)
+		return Session{}, fmt.Errorf("failed to request wechat API: %w", err)
 	}
 	defer func() {
 		if rsp.Body != nil {
@@ -47,21 +45,21 @@ func GetSession(ctx context.Context, appid, secret, js_code string) (WeChatSessi
 	}()
 
 	if rsp.StatusCode != http.StatusOK {
-		return WeChatSession{}, fmt.Errorf("wechat api status: %d", rsp.StatusCode)
+		return Session{}, fmt.Errorf("wechat API status: %d", rsp.StatusCode)
 	}
 
 	body, err := io.ReadAll(rsp.Body)
 	if err != nil {
-		return WeChatSession{}, fmt.Errorf("failed to read body: %w", err)
+		return Session{}, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	var session WeChatSession
+	var session Session
 	if err := json.Unmarshal(body, &session); err != nil {
-		return WeChatSession{}, fmt.Errorf("failed to decode response: %w", err)
+		return Session{}, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	if session.ErrCode != 0 {
-		return session, fmt.Errorf("wechat api error: [%d] %s", session.ErrCode, session.ErrMsg)
+		return session, fmt.Errorf("wechat API error: [%d] %s", session.ErrCode, session.ErrMsg)
 	}
 
 	return session, nil

@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v3/logger"
 	"go.uber.org/zap"
 )
 
@@ -19,6 +18,7 @@ type workerPoolConfig struct {
 	workerCount int
 	bufferSize  int
 	name        string
+	log         *zap.Logger
 }
 
 func defaultWorkerPoolConfig() workerPoolConfig {
@@ -48,6 +48,14 @@ func WithBufferSize(size int) WorkerPoolOption {
 func WithName(name string) WorkerPoolOption {
 	return func(cfg *workerPoolConfig) {
 		cfg.name = name
+	}
+}
+
+// WithLogger sets an optional logger for worker-pool lifecycle events.
+// When unset, the worker pool stays silent by default.
+func WithLogger(log *zap.Logger) WorkerPoolOption {
+	return func(cfg *workerPoolConfig) {
+		cfg.log = log
 	}
 }
 
@@ -88,7 +96,11 @@ func NewWorkerPool(ctx context.Context, opts ...WorkerPoolOption) *WorkerPool {
 	if cfg.name != "" {
 		fields = append(fields, zap.String("pool_name", cfg.name))
 	}
-	log := logger.FromContext(ctx, fields...)
+	log := cfg.log
+	if log == nil {
+		log = zap.NewNop()
+	}
+	log = log.With(fields...)
 
 	workerPool := &WorkerPool{
 		ctx:    ctx,
@@ -112,7 +124,6 @@ func NewWorkerPool(ctx context.Context, opts ...WorkerPoolOption) *WorkerPool {
 func (w *WorkerPool) workerLoop(index int) {
 	log := w.log.With(
 		zap.Int("worker_index", index),
-		zap.Uint64("goroutine_id", logger.GetGoroutineID()),
 	)
 
 	for {

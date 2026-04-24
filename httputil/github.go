@@ -22,10 +22,3 @@ func GetGitHubRawURL(browseURL string) (string, error) {
 	rawUrl := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/", owner, repo, branch)
 	return rawUrl, nil
 }
-
-// GetGitHubRwaUrl 保留旧名称以兼容历史调用。
-//
-// Deprecated: use GetGitHubRawURL instead.
-func GetGitHubRwaUrl(browseURL string) (string, error) {
-	return GetGitHubRawURL(browseURL)
-}

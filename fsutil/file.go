@@ -5,12 +5,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/weiweimhy/go-utils/v3/cryptoutil"
+	"github.com/weiweimhy/go-utils/v4/cryptoutil"
 )
 
-func IsFileExist(path string) bool {
+// FileExists reports whether the given path exists and is a file.
+func FileExists(path string) bool {
 	info, err := os.Stat(path)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return false
 	}
 	return !info.IsDir()
@@ -37,10 +38,11 @@ func GetFileBase64(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return cryptoutil.GetBase64FromBytes(data), nil
+	return cryptoutil.Base64FromBytes(data), nil
 }
 
-func GetStringFormFile(path string) (string, error) {
+// GetStringFromFile reads a file into a string.
+func GetStringFromFile(path string) (string, error) {
 	data, err := os.ReadFile(path)
 
 	if err != nil {

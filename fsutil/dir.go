@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 )
 
-// IsDirExist reports whether the given path exists and is a directory.
-func IsDirExist(path string) bool {
+// DirExists reports whether the given path exists and is a directory.
+func DirExists(path string) bool {
 	info, err := os.Stat(path)
-	if os.IsNotExist(err) {
+	if err != nil {
 		return false
 	}
 	return info.IsDir()

@@ -31,3 +31,13 @@ func TestSaveToFileWithPerm(t *testing.T) {
 		t.Errorf("expected perm %o, got %o", perm, info.Mode().Perm())
 	}
 }
+
+func TestFileExistsReturnsFalseForMissingFile(t *testing.T) {
+	tmpDir, _ := os.MkdirTemp("", "fsutil_exist_test")
+	defer os.RemoveAll(tmpDir)
+
+	path := filepath.Join(tmpDir, "missing.file")
+	if FileExists(path) {
+		t.Fatalf("expected missing file to return false")
+	}
+}

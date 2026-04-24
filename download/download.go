@@ -10,11 +10,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v3/errs"
-	"github.com/weiweimhy/go-utils/v3/fsutil"
-	"github.com/weiweimhy/go-utils/v3/httputil"
-	"github.com/weiweimhy/go-utils/v3/logger"
-	"github.com/weiweimhy/go-utils/v3/task"
+	"github.com/weiweimhy/go-utils/v4/errs"
+	"github.com/weiweimhy/go-utils/v4/fsutil"
+	"github.com/weiweimhy/go-utils/v4/httputil"
+	"github.com/weiweimhy/go-utils/v4/task"
 	"go.uber.org/zap"
 )
 
@@ -33,6 +32,7 @@ type DownloadManager struct {
 
 	workers    int
 	bufferSize int
+	log        *zap.Logger
 
 	wg        sync.WaitGroup
 	closeOnce sync.Once
@@ -64,6 +64,12 @@ func WithClient(c *http.Client) DMOption {
 	return func(dm *DownloadManager) { dm.client = c }
 }
 
+// WithLogger sets an optional logger for manager lifecycle and failures.
+// When unset, the manager stays silent by default.
+func WithLogger(log *zap.Logger) DMOption {
+	return func(dm *DownloadManager) { dm.log = log }
+}
+
 // dmConfig 内部配置结构
 type dmConfig struct {
 	workers  int
@@ -76,16 +82,17 @@ func defaultConfig() *dmConfig {
 	return &dmConfig{
 		workers:  20,
 		chanSize: 100,
-		client:   httputil.DefaultHttpClient,
+		client:   httputil.DefaultHTTPClient,
 	}
 }
 
 // NewDownloadManager 创建下载管理器
 func NewDownloadManager(opts ...DMOption) *DownloadManager {
 	dm := &DownloadManager{
-		client:     httputil.DefaultHttpClient,
+		client:     httputil.DefaultHTTPClient,
 		workers:    20,
 		bufferSize: 100,
+		log:        zap.NewNop(),
 	}
 	for _, opt := range opts {
 		opt(dm)
@@ -103,6 +110,9 @@ func (dm *DownloadManager) StartWithConfig(ctx context.Context, workers, bufferS
 	if dm.pool != nil {
 		return nil // 已启动
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	dm.ctx, dm.cancel = context.WithCancel(ctx)
 	dm.pool = task.NewWorkerPool(
@@ -110,9 +120,10 @@ func (dm *DownloadManager) StartWithConfig(ctx context.Context, workers, bufferS
 		task.WithWorkerCount(workers),
 		task.WithBufferSize(bufferSize),
 		task.WithName("download-manager"),
+		task.WithLogger(dm.log),
 	)
 
-	logger.L().Info("download manager started",
+	dm.log.Info("download manager started",
 		zap.Int("workers", workers),
 		zap.Int("buffer", bufferSize),
 	)
@@ -140,7 +151,7 @@ func (dm *DownloadManager) AddWithCallback(url, savePath string, callback func(u
 
 		err := downloadFile(ctx, dm.client, url, savePath)
 		if err != nil {
-			logger.L().Warn("download failed",
+			dm.log.Warn("download failed",
 				zap.String("url", url),
 				zap.String("path", savePath),
 				zap.Error(err),

@@ -6,16 +6,17 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v3/fsutil"
+	"github.com/weiweimhy/go-utils/v4/fsutil"
 	"go.etcd.io/bbolt"
 )
 
-type LocalDB struct {
+// DB is a thin BoltDB-backed local key-value store.
+type DB struct {
 	*bbolt.DB
 }
 
-// Open 打开一个新的 BoltDB 实例。不再使用全局变量存储。
-func Open(path string, name string) (*LocalDB, error) {
+// Open opens a BoltDB-backed local key-value store.
+func Open(path string, name string) (*DB, error) {
 	if err := fsutil.CreateDir(path); err != nil {
 		return nil, err
 	}
@@ -29,10 +30,11 @@ func Open(path string, name string) (*LocalDB, error) {
 		return nil, err
 	}
 
-	return &LocalDB{db}, nil
+	return &DB{db}, nil
 }
 
-func (db *LocalDB) Set(bucket, key string, value []byte) error {
+// Set stores a raw byte value in the given bucket and key.
+func (db *DB) Set(bucket, key string, value []byte) error {
 	return db.Update(func(tx *bbolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte(bucket))
 		if err != nil {
@@ -42,7 +44,8 @@ func (db *LocalDB) Set(bucket, key string, value []byte) error {
 	})
 }
 
-func (db *LocalDB) SetJSON(bucket, key string, v interface{}) error {
+// SetJSONValue marshals v as JSON and stores it in the given bucket and key.
+func (db *DB) SetJSONValue(bucket, key string, v interface{}) error {
 	data, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -50,7 +53,8 @@ func (db *LocalDB) SetJSON(bucket, key string, v interface{}) error {
 	return db.Set(bucket, key, data)
 }
 
-func (db *LocalDB) Get(bucket, key string) ([]byte, error) {
+// Get loads a raw byte value from the given bucket and key.
+func (db *DB) Get(bucket, key string) ([]byte, error) {
 	var data []byte
 	err := db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
@@ -67,7 +71,8 @@ func (db *LocalDB) Get(bucket, key string) ([]byte, error) {
 	return data, err
 }
 
-func (db *LocalDB) GetJSON(bucket, key string, out interface{}) error {
+// GetJSONValue loads JSON data from the given bucket and key into out.
+func (db *DB) GetJSONValue(bucket, key string, out interface{}) error {
 	data, err := db.Get(bucket, key)
 	if err != nil || data == nil {
 		return err
@@ -75,11 +80,13 @@ func (db *LocalDB) GetJSON(bucket, key string, out interface{}) error {
 	return json.Unmarshal(data, out)
 }
 
-func (db *LocalDB) SetInt(bucket, key string, value int) error {
+// SetInt stores an int value in decimal string form.
+func (db *DB) SetInt(bucket, key string, value int) error {
 	return db.Set(bucket, key, []byte(strconv.Itoa(value)))
 }
 
-func (db *LocalDB) GetInt(bucket, key string) (int, error) {
+// GetInt loads an int value stored in decimal string form.
+func (db *DB) GetInt(bucket, key string) (int, error) {
 	data, err := db.Get(bucket, key)
 	if err != nil || data == nil {
 		return 0, err
@@ -87,7 +94,8 @@ func (db *LocalDB) GetInt(bucket, key string) (int, error) {
 	return strconv.Atoi(string(data))
 }
 
-func (db *LocalDB) Delete(bucket, key string) error {
+// Delete removes a key from the given bucket.
+func (db *DB) Delete(bucket, key string) error {
 	return db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(bucket))
 		if b == nil {

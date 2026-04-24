@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v3/fsutil"
-	"github.com/weiweimhy/go-utils/v3/jwt"
-	"github.com/weiweimhy/go-utils/v3/logger"
-	"github.com/weiweimhy/go-utils/v3/regexputil"
-	"github.com/weiweimhy/go-utils/v3/task"
+	"github.com/weiweimhy/go-utils/v4/fsutil"
+	"github.com/weiweimhy/go-utils/v4/jwt"
+	"github.com/weiweimhy/go-utils/v4/logger"
+	"github.com/weiweimhy/go-utils/v4/regexputil"
+	"github.com/weiweimhy/go-utils/v4/task"
 	"go.uber.org/zap"
 )
 
@@ -28,7 +28,7 @@ func BenchmarkRegexp(b *testing.B) {
 	pattern := `(\d+)`
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = regexputil.GetRegexpMatches(str, pattern)
+		_ = regexputil.MustFindMatches(str, pattern)
 	}
 }
 

@@ -8,13 +8,13 @@ import (
 	"testing"
 )
 
-func TestGetBytesFromUrl(t *testing.T) {
+func TestGetBytesFromURL(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	}))
 	defer server.Close()
 
-	data, err := GetBytesFromUrl(context.Background(), server.URL)
+	data, err := GetBytesFromURL(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -23,13 +23,13 @@ func TestGetBytesFromUrl(t *testing.T) {
 	}
 }
 
-func TestGetBytesFromUrlStatusError(t *testing.T) {
+func TestGetBytesFromURLStatusError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "nope", http.StatusBadGateway)
 	}))
 	defer server.Close()
 
-	_, err := GetBytesFromUrl(context.Background(), server.URL)
+	_, err := GetBytesFromURL(context.Background(), server.URL)
 	if err == nil || !strings.Contains(err.Error(), "status: 502") {
 		t.Fatalf("expected status error, got %v", err)
 	}

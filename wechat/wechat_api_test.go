@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/weiweimhy/go-utils/v3/httputil"
+	"github.com/weiweimhy/go-utils/v4/httputil"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -25,8 +25,8 @@ func TestGetSessionValidatesInput(t *testing.T) {
 }
 
 func TestGetSessionSuccess(t *testing.T) {
-	oldClient := httputil.DefaultHttpClient
-	httputil.DefaultHttpClient = &http.Client{
+	oldClient := httputil.DefaultHTTPClient
+	httputil.DefaultHTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			body := `{"openid":"oid","session_key":"sk"}`
 			return &http.Response{
@@ -37,7 +37,7 @@ func TestGetSessionSuccess(t *testing.T) {
 		}),
 	}
 	defer func() {
-		httputil.DefaultHttpClient = oldClient
+		httputil.DefaultHTTPClient = oldClient
 	}()
 
 	session, err := GetSession(context.Background(), "appid", "secret", "code")
@@ -50,8 +50,8 @@ func TestGetSessionSuccess(t *testing.T) {
 }
 
 func TestGetSessionAPIError(t *testing.T) {
-	oldClient := httputil.DefaultHttpClient
-	httputil.DefaultHttpClient = &http.Client{
+	oldClient := httputil.DefaultHTTPClient
+	httputil.DefaultHTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			body := `{"errcode":40029,"errmsg":"invalid code"}`
 			return &http.Response{
@@ -62,7 +62,7 @@ func TestGetSessionAPIError(t *testing.T) {
 		}),
 	}
 	defer func() {
-		httputil.DefaultHttpClient = oldClient
+		httputil.DefaultHTTPClient = oldClient
 	}()
 
 	_, err := GetSession(context.Background(), "appid", "secret", "code")

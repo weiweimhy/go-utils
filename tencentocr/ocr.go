@@ -6,63 +6,57 @@ import (
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
-	ocr "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ocr/v20181119"
-	"github.com/weiweimhy/go-utils/v3/logger"
+	sdkocr "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/ocr/v20181119"
 )
 
-// IOCRClient 定义了腾讯 OCR 操作的标准接口。
-type IOCRClient interface {
-	GetPdfInvoiceData(ctx context.Context, data *string, isPdf bool) (*ocr.VatInvoiceOCRResponse, error)
-	GetOfdInvoiceData(ctx context.Context, data *string) (*ocr.VerifyOfdVatInvoiceOCRResponse, error)
-	GetGeneralAccurateData(ctx context.Context, data *string) (*ocr.GeneralAccurateOCRResponse, error)
-}
-
+// Config contains Tencent OCR client settings.
 type Config struct {
-	SecretId  string
+	SecretID  string
 	SecretKey string
 	Endpoint  string
 }
 
-type clientImpl struct {
-	*ocr.Client
+// Client wraps the Tencent OCR SDK client.
+type Client struct {
+	*sdkocr.Client
 }
 
-// NewClient 创建并返回满足 IOCRClient 接口的 OCR 实例。
-func NewClient(config Config) (IOCRClient, error) {
+// NewClient creates a Tencent OCR client with package defaults applied.
+func NewClient(config Config) (*Client, error) {
 	if config.Endpoint == "" {
 		config.Endpoint = "ocr.tencentcloudapi.com"
 	}
 
-	credential := common.NewCredential(config.SecretId, config.SecretKey)
+	credential := common.NewCredential(config.SecretID, config.SecretKey)
 	cpf := profile.NewClientProfile()
 	cpf.HttpProfile.Endpoint = config.Endpoint
 
-	client, err := ocr.NewClient(credential, "", cpf)
+	client, err := sdkocr.NewClient(credential, "", cpf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tencent ocr client: %w", err)
 	}
 
-	return &clientImpl{client}, nil
+	return &Client{client}, nil
 }
 
-func (c *clientImpl) GetPdfInvoiceData(ctx context.Context, data *string, isPdf bool) (*ocr.VatInvoiceOCRResponse, error) {
-	defer logger.Trace(logger.L(), "tencentocr.GetPdfInvoiceData")()
-	request := ocr.NewVatInvoiceOCRRequest()
-	request.IsPdf = &isPdf
+// GetPDFInvoiceData extracts invoice data from PDF or image content.
+func (c *Client) GetPDFInvoiceData(ctx context.Context, data *string, isPDF bool) (*sdkocr.VatInvoiceOCRResponse, error) {
+	request := sdkocr.NewVatInvoiceOCRRequest()
+	request.IsPdf = &isPDF
 	request.ImageBase64 = data
 	return c.VatInvoiceOCRWithContext(ctx, request)
 }
 
-func (c *clientImpl) GetOfdInvoiceData(ctx context.Context, data *string) (*ocr.VerifyOfdVatInvoiceOCRResponse, error) {
-	defer logger.Trace(logger.L(), "tencentocr.GetOfdInvoiceData")()
-	request := ocr.NewVerifyOfdVatInvoiceOCRRequest()
+// GetOFDInvoiceData extracts invoice data from OFD content.
+func (c *Client) GetOFDInvoiceData(ctx context.Context, data *string) (*sdkocr.VerifyOfdVatInvoiceOCRResponse, error) {
+	request := sdkocr.NewVerifyOfdVatInvoiceOCRRequest()
 	request.OfdFileBase64 = data
 	return c.VerifyOfdVatInvoiceOCRWithContext(ctx, request)
 }
 
-func (c *clientImpl) GetGeneralAccurateData(ctx context.Context, data *string) (*ocr.GeneralAccurateOCRResponse, error) {
-	defer logger.Trace(logger.L(), "tencentocr.GetGeneralAccurateData")()
-	request := ocr.NewGeneralAccurateOCRRequest()
+// GetGeneralAccurateData extracts text with Tencent's general accurate OCR API.
+func (c *Client) GetGeneralAccurateData(ctx context.Context, data *string) (*sdkocr.GeneralAccurateOCRResponse, error) {
+	request := sdkocr.NewGeneralAccurateOCRRequest()
 	request.ImageBase64 = data
 	return c.GeneralAccurateOCRWithContext(ctx, request)
 }

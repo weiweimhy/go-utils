@@ -22,7 +22,7 @@ func TestOpenSetAndGet(t *testing.T) {
 	}
 }
 
-func TestSetAndGetJSON(t *testing.T) {
+func TestSetAndGetJSONValue(t *testing.T) {
 	db, err := Open(t.TempDir(), "test.db")
 	if err != nil {
 		t.Fatalf("expected open to succeed, got %v", err)
@@ -34,13 +34,13 @@ func TestSetAndGetJSON(t *testing.T) {
 	}
 
 	want := user{Name: "alice"}
-	if err := db.SetJSON("users", "1", want); err != nil {
-		t.Fatalf("expected SetJSON to succeed, got %v", err)
+	if err := db.SetJSONValue("users", "1", want); err != nil {
+		t.Fatalf("expected SetJSONValue to succeed, got %v", err)
 	}
 
 	var got user
-	if err := db.GetJSON("users", "1", &got); err != nil {
-		t.Fatalf("expected GetJSON to succeed, got %v", err)
+	if err := db.GetJSONValue("users", "1", &got); err != nil {
+		t.Fatalf("expected GetJSONValue to succeed, got %v", err)
 	}
 	if got != want {
 		t.Fatalf("expected %+v, got %+v", want, got)
