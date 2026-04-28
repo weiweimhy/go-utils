@@ -70,11 +70,15 @@ go get github.com/weiweimhy/go-utils/v4@v4.0.0
 如果遇到缓存问题（如版本未更新），可强制清除并重新拉取：
 
 ```bash
-# 清除指定模块缓存
+# 清除模块缓存
 go clean -modcache
 
-# 或仅清除本项目缓存后重新拉取
+# Bash / Zsh: 重新拉取指定版本
 GOPROXY=https://proxy.golang.org,direct go get github.com/weiweimhy/go-utils/v4@v4.0.0
+
+# PowerShell: 重新拉取指定版本
+$env:GOPROXY = "https://proxy.golang.org,direct"
+go get github.com/weiweimhy/go-utils/v4@v4.0.0
 ```
 
 ---
@@ -84,6 +88,7 @@ GOPROXY=https://proxy.golang.org,direct go get github.com/weiweimhy/go-utils/v4@
 | 包名 | 核心功能 | 适用场景 |
 | :--- | :--- | :--- |
 | `logger` | 结构化日志、Trace 追踪 | 全局日志记录、函数耗时分析 |
+| `event` | 轻量事件总线 | 进程内发布订阅、模块解耦 |
 | `task` | 通用工作池、任务分组 | 并发任务管理、goroutine 复用 |
 | `download` | 高并发下载管理器 | 批量文件下载 |
 | `httputil` | 安全 HTTP 客户端 | 远程 API 调用 |
@@ -99,7 +104,7 @@ GOPROXY=https://proxy.golang.org,direct go get github.com/weiweimhy/go-utils/v4@
 ## 📚 包分层建议
 
 - **核心工具**：`cryptoutil`、`fsutil`、`regexputil`、`htmlutil`、`runtimeutil`
-- **基础设施**：`task`、`httputil`、`logger`、`localdb`、`download`、`jwt`
+- **基础设施**：`event`、`task`、`httputil`、`logger`、`localdb`、`download`、`jwt`
 - **外部集成子模块**：`github.com/weiweimhy/go-utils/v4/mongo`、`github.com/weiweimhy/go-utils/v4/wechat`、`github.com/weiweimhy/go-utils/v4/tencentocr`
 
 如果你只需要轻量工具，优先依赖主模块；外部集成请按需引入对应子模块，避免把数据库驱动和云厂商 SDK 带进主模块。
@@ -186,7 +191,28 @@ func main() {
 }
 ```
 
-### 3. 下载管理器 (download)
+### 3. 事件总线 (event)
+
+```go
+import "github.com/weiweimhy/go-utils/v4/event"
+
+func main() {
+    bus := event.NewBus()
+    defer bus.Close()
+
+    unsubscribe, ok := bus.Subscribe("user.login", func(eventType string, data any) {
+        println(eventType, data.(string))
+    })
+    if !ok {
+        return
+    }
+    defer unsubscribe()
+
+    bus.PublishSync("user.login", "alice")
+}
+```
+
+### 4. 下载管理器 (download)
 
 ```go
 import (
@@ -211,7 +237,7 @@ func main() {
 }
 ```
 
-### 4. HTTP 请求 (httputil)
+### 5. HTTP 请求 (httputil)
 
 ```go
 import (
