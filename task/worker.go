@@ -2,12 +2,12 @@ package task
 
 import (
 	"context"
+	"log/slog"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 var workerPoolIDCounter atomic.Uint64
@@ -18,7 +18,7 @@ type workerPoolConfig struct {
 	workerCount int
 	bufferSize  int
 	name        string
-	log         *zap.Logger
+	log         *slog.Logger
 }
 
 func defaultWorkerPoolConfig() workerPoolConfig {
@@ -53,7 +53,7 @@ func WithName(name string) WorkerPoolOption {
 
 // WithLogger sets an optional logger for worker-pool lifecycle events.
 // When unset, the worker pool stays silent by default.
-func WithLogger(log *zap.Logger) WorkerPoolOption {
+func WithLogger(log *slog.Logger) WorkerPoolOption {
 	return func(cfg *workerPoolConfig) {
 		cfg.log = log
 	}
@@ -63,7 +63,7 @@ func WithLogger(log *zap.Logger) WorkerPoolOption {
 type WorkerPool struct {
 	ctx    context.Context
 	cancel context.CancelFunc
-	log    *zap.Logger
+	log    *slog.Logger
 	id     uint64
 
 	stateMu   sync.RWMutex
@@ -89,18 +89,17 @@ func NewWorkerPool(ctx context.Context, opts ...WorkerPoolOption) *WorkerPool {
 
 	ctx, cancel := context.WithCancel(ctx)
 	poolID := workerPoolIDCounter.Add(1)
-	fields := []zap.Field{
-		zap.String("module", "WorkerPool"),
-		zap.Uint64("pool_id", poolID),
-	}
-	if cfg.name != "" {
-		fields = append(fields, zap.String("pool_name", cfg.name))
-	}
 	log := cfg.log
-	if log == nil {
-		log = zap.NewNop()
+	if log != nil {
+		attrs := []any{
+			"module", "WorkerPool",
+			"pool_id", poolID,
+		}
+		if cfg.name != "" {
+			attrs = append(attrs, "pool_name", cfg.name)
+		}
+		log = log.With(attrs...)
 	}
-	log = log.With(fields...)
 
 	workerPool := &WorkerPool{
 		ctx:    ctx,
@@ -122,18 +121,23 @@ func NewWorkerPool(ctx context.Context, opts ...WorkerPoolOption) *WorkerPool {
 }
 
 func (w *WorkerPool) workerLoop(index int) {
-	log := w.log.With(
-		zap.Int("worker_index", index),
-	)
+	log := w.log
+	if log != nil {
+		log = log.With("worker_index", index)
+	}
 
 	for {
 		select {
 		case <-w.ctx.Done():
-			log.Debug("worker exit: context cancelled")
+			if log != nil {
+				log.DebugContext(w.ctx, "worker exit: context cancelled")
+			}
 			return
 		case task, ok := <-w.tasks:
 			if !ok {
-				log.Debug("worker exit: channel closed")
+				if log != nil {
+					log.DebugContext(context.Background(), "worker exit: channel closed")
+				}
 				return
 			}
 			w.safeExecute(log, task)
@@ -142,13 +146,12 @@ func (w *WorkerPool) workerLoop(index int) {
 }
 
 // safeExecute 安全执行任务，捕获 panic
-func (w *WorkerPool) safeExecute(log *zap.Logger, task Task) {
+func (w *WorkerPool) safeExecute(log *slog.Logger, task Task) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Error("task panic recovered",
-				zap.Any("panic", r),
-				zap.Stack("stack"),
-			)
+			if log != nil {
+				log.ErrorContext(w.ctx, "task panic recovered", "panic", r, "stack", string(debug.Stack()))
+			}
 		}
 	}()
 	task.Execute(w.ctx)
@@ -212,10 +215,14 @@ func (w *WorkerPool) Close(timeout time.Duration) bool {
 		select {
 		case <-done:
 			w.cancel()
-			w.log.Info("worker pool closed gracefully")
+			if w.log != nil {
+				w.log.InfoContext(context.Background(), "worker pool closed gracefully")
+			}
 		case <-time.After(timeout):
 			w.cancel()
-			w.log.Warn("worker pool closed with timeout")
+			if w.log != nil {
+				w.log.WarnContext(context.Background(), "worker pool closed with timeout")
+			}
 			graceful = false
 		}
 	})

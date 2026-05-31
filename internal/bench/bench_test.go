@@ -6,22 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v4/fsutil"
-	"github.com/weiweimhy/go-utils/v4/jwt"
-	"github.com/weiweimhy/go-utils/v4/logger"
-	"github.com/weiweimhy/go-utils/v4/regexputil"
-	"github.com/weiweimhy/go-utils/v4/task"
-	"go.uber.org/zap"
+	"github.com/weiweimhy/go-utils/v5/fsutil"
+	"github.com/weiweimhy/go-utils/v5/regexputil"
+	"github.com/weiweimhy/go-utils/v5/task"
 )
-
-func BenchmarkLogger(b *testing.B) {
-	logger.Init(logger.WithFilename("./bench.log"))
-	l := logger.L()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		l.Info("benchmark message", zap.Int("index", i))
-	}
-}
 
 func BenchmarkRegexp(b *testing.B) {
 	str := "hello 123 world 456"
@@ -29,16 +17,6 @@ func BenchmarkRegexp(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = regexputil.MustFindMatches(str, pattern)
-	}
-}
-
-func BenchmarkJWT(b *testing.B) {
-	j, _ := jwt.NewJWT(jwt.WithSecret("bench-secret-key-256-bits-long!!"))
-	ctx := context.Background()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		tokens, _ := j.Generate(ctx, "user123", nil)
-		_, _ = j.Validate(ctx, tokens.AccessToken)
 	}
 }
 

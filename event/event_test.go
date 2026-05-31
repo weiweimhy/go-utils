@@ -1,6 +1,7 @@
 package event
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -161,4 +162,32 @@ func TestClearEventType(t *testing.T) {
 	if !bus.HasSubscribers("task.updated") {
 		t.Fatal("expected other event type subscribers to remain")
 	}
+}
+
+func TestPublishConcurrentWithCloseDoesNotPanic(t *testing.T) {
+	bus := NewBus(WithWorkerCount(4), WithBufferSize(16))
+	_, ok := bus.Subscribe("tick", func(eventType string, data any) {})
+	if !ok {
+		t.Fatal("expected subscribe to succeed")
+	}
+
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for range 16 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			for {
+				if !bus.Publish("tick", nil) {
+					return
+				}
+			}
+		}()
+	}
+
+	close(start)
+	time.Sleep(10 * time.Millisecond)
+	bus.Close()
+	wg.Wait()
 }

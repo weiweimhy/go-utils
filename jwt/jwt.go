@@ -10,7 +10,23 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/weiweimhy/go-utils/v4/errs"
+)
+
+var (
+	// ErrKeyMissing indicates no signing or verification key was configured.
+	ErrKeyMissing = errors.New("jwt: signing or verification key is missing")
+	// ErrPrivateKeyMissing indicates a private key is required for signing.
+	ErrPrivateKeyMissing = errors.New("jwt: private key is missing for signing")
+	// ErrPublicKeyMissing indicates a public key is required for verification.
+	ErrPublicKeyMissing = errors.New("jwt: public key is missing for verification")
+	// ErrTokenExpired indicates a token has expired.
+	ErrTokenExpired = errors.New("jwt: token is expired")
+	// ErrTokenInvalid indicates a token is invalid.
+	ErrTokenInvalid = errors.New("jwt: token is invalid")
+	// ErrTokenMalformed indicates a token cannot be parsed.
+	ErrTokenMalformed = errors.New("jwt: token is malformed")
+	// ErrClaimsInvalid indicates token claims are missing or invalid.
+	ErrClaimsInvalid = errors.New("jwt: claims are invalid")
 )
 
 // TokenType 定义令牌类型
@@ -186,7 +202,7 @@ func NewJWT(opts ...Option) (*JWT, error) {
 
 	// 验证密钥配置
 	if cfg.Secret == "" && cfg.PrivateKey == nil && cfg.PublicKey == nil {
-		return nil, errs.ErrJWTKeyMissing
+		return nil, ErrKeyMissing
 	}
 
 	return &JWT{cfg: cfg}, nil
@@ -194,9 +210,12 @@ func NewJWT(opts ...Option) (*JWT, error) {
 
 // Generate 生成访问令牌和刷新令牌对。
 func (j *JWT) Generate(ctx context.Context, userID string, extra map[string]any) (*TokenPair, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
 	// 检查是否有签名密钥
 	if j.cfg.Secret == "" && j.cfg.PrivateKey == nil {
-		return nil, errs.ErrJWTPrivateKeyMissing
+		return nil, ErrPrivateKeyMissing
 	}
 
 	now := time.Now()
@@ -224,6 +243,9 @@ func (j *JWT) Generate(ctx context.Context, userID string, extra map[string]any)
 
 // Validate 验证令牌并返回 Claims。
 func (j *JWT) Validate(ctx context.Context, tokenString string) (*Claims, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		// 根据 token 的签名方法返回对应的验证密钥
 		switch token.Method.(type) {
@@ -240,7 +262,7 @@ func (j *JWT) Validate(ctx context.Context, tokenString string) (*Claims, error)
 			if j.cfg.PrivateKey != nil {
 				return &j.cfg.PrivateKey.PublicKey, nil
 			}
-			return nil, errs.ErrJWTPublicKeyMissing
+			return nil, ErrPublicKeyMissing
 		default:
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -248,17 +270,17 @@ func (j *JWT) Validate(ctx context.Context, tokenString string) (*Claims, error)
 
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
-			return nil, errs.ErrJWTTokenExpired
+			return nil, ErrTokenExpired
 		}
 		if errors.Is(err, jwt.ErrTokenMalformed) {
-			return nil, errs.ErrJWTTokenMalformed
+			return nil, ErrTokenMalformed
 		}
-		return nil, fmt.Errorf("%w: %v", errs.ErrJWTTokenInvalid, err)
+		return nil, fmt.Errorf("%w: %v", ErrTokenInvalid, err)
 	}
 
 	claims, ok := token.Claims.(*Claims)
 	if !ok || !token.Valid {
-		return nil, errs.ErrJWTClaimsInvalid
+		return nil, ErrClaimsInvalid
 	}
 
 	return claims, nil
@@ -272,7 +294,7 @@ func (j *JWT) Refresh(ctx context.Context, refreshToken string) (*TokenPair, err
 	}
 
 	if claims.TokenType != TokenTypeRefresh {
-		return nil, errs.ErrJWTTokenInvalid
+		return nil, ErrTokenInvalid
 	}
 
 	return j.Generate(ctx, claims.UserID, claims.Extra)
@@ -301,10 +323,17 @@ func (j *JWT) generateToken(userID string, tokenType TokenType, extra map[string
 		return token.SignedString([]byte(j.cfg.Secret))
 	case *jwt.SigningMethodRSA:
 		if j.cfg.PrivateKey == nil {
-			return "", errs.ErrJWTPrivateKeyMissing
+			return "", ErrPrivateKeyMissing
 		}
 		return token.SignedString(j.cfg.PrivateKey)
 	default:
 		return "", fmt.Errorf("unsupported signing method: %v", j.cfg.SigningMethod.Alg())
 	}
+}
+
+func ctxErr(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.Err()
 }

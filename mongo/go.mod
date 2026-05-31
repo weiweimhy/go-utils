@@ -1,4 +1,4 @@
-module github.com/weiweimhy/go-utils/v4/mongo
+module github.com/weiweimhy/go-utils/v5/mongo
 
 go 1.24.0
 

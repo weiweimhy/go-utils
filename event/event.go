@@ -149,12 +149,19 @@ func (b *Bus) unsubscribe(eventType string, id uint64) {
 // Publish dispatches an event asynchronously.
 // It returns false when the bus is already closed.
 func (b *Bus) Publish(eventType string, data any) bool {
-	handlers, ok := b.snapshotHandlers(eventType)
-	if !ok {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	if b.closed.Load() {
 		return false
 	}
 
-	for _, handler := range handlers {
+	registered := b.handlers[eventType]
+	if len(registered) == 0 {
+		return true
+	}
+
+	for _, handler := range registered {
 		b.queue <- dispatchTask{
 			eventType: eventType,
 			data:      data,
@@ -240,8 +247,10 @@ func (b *Bus) IsClosed() bool {
 // Close stops accepting new subscriptions and publish requests, then drains queued tasks.
 func (b *Bus) Close() {
 	b.closeOnce.Do(func() {
+		b.mu.Lock()
 		b.closed.Store(true)
 		close(b.queue)
+		b.mu.Unlock()
 		b.workers.Wait()
 	})
 }

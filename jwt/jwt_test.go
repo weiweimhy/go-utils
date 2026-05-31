@@ -9,8 +9,6 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/weiweimhy/go-utils/v4/errs"
 )
 
 func TestNewJWT(t *testing.T) {
@@ -22,7 +20,7 @@ func TestNewJWT(t *testing.T) {
 		{
 			name:    "empty key should fail",
 			opts:    []Option{},
-			wantErr: errs.ErrJWTKeyMissing,
+			wantErr: ErrKeyMissing,
 		},
 		{
 			name: "valid secret should succeed",
@@ -124,8 +122,8 @@ func TestValidateExpired(t *testing.T) {
 	}
 
 	_, err = j.Validate(ctx, tokens.AccessToken)
-	if !errors.Is(err, errs.ErrJWTTokenExpired) {
-		t.Errorf("Validate() error = %v, want %v", err, errs.ErrJWTTokenExpired)
+	if !errors.Is(err, ErrTokenExpired) {
+		t.Errorf("Validate() error = %v, want %v", err, ErrTokenExpired)
 	}
 }
 
@@ -145,12 +143,12 @@ func TestValidateInvalid(t *testing.T) {
 		{
 			name:    "malformed token",
 			token:   "not-a-valid-token",
-			wantErr: errs.ErrJWTTokenMalformed,
+			wantErr: ErrTokenMalformed,
 		},
 		{
 			name:    "invalid signature",
 			token:   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidXNlcjEyMyJ9.invalid",
-			wantErr: errs.ErrJWTTokenInvalid,
+			wantErr: ErrTokenInvalid,
 		},
 	}
 
@@ -191,8 +189,8 @@ func TestRefresh(t *testing.T) {
 
 	// 使用 access token 刷新应该失败
 	_, err = j.Refresh(ctx, tokens.AccessToken)
-	if !errors.Is(err, errs.ErrJWTTokenInvalid) {
-		t.Errorf("Refresh() with access token error = %v, want %v", err, errs.ErrJWTTokenInvalid)
+	if !errors.Is(err, ErrTokenInvalid) {
+		t.Errorf("Refresh() with access token error = %v, want %v", err, ErrTokenInvalid)
 	}
 }
 
@@ -348,8 +346,8 @@ func TestRSADistributedScenario(t *testing.T) {
 
 	// 业务服务不能生成令牌（因为没有私钥）
 	_, err = businessService.Generate(ctx, "another-user", nil)
-	if !errors.Is(err, errs.ErrJWTPrivateKeyMissing) {
-		t.Errorf("Generate() without private key error = %v, want %v", err, errs.ErrJWTPrivateKeyMissing)
+	if !errors.Is(err, ErrPrivateKeyMissing) {
+		t.Errorf("Generate() without private key error = %v, want %v", err, ErrPrivateKeyMissing)
 	}
 }
 
@@ -409,8 +407,25 @@ func TestRSAValidateExpired(t *testing.T) {
 	}
 
 	_, err = j.Validate(ctx, tokens.AccessToken)
-	if !errors.Is(err, errs.ErrJWTTokenExpired) {
-		t.Errorf("Validate() error = %v, want %v", err, errs.ErrJWTTokenExpired)
+	if !errors.Is(err, ErrTokenExpired) {
+		t.Errorf("Validate() error = %v, want %v", err, ErrTokenExpired)
+	}
+}
+
+func TestContextCancellation(t *testing.T) {
+	j, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"))
+	if err != nil {
+		t.Fatalf("NewJWT() error = %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if _, err := j.Generate(ctx, "user123", nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Generate() error = %v, want context.Canceled", err)
+	}
+	if _, err := j.Validate(ctx, "invalid"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Validate() error = %v, want context.Canceled", err)
 	}
 }
 

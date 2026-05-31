@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/weiweimhy/go-utils/v4/httputil"
+	"github.com/weiweimhy/go-utils/v5/httputil"
 )
 
 // Session represents a WeChat mini-program session response.

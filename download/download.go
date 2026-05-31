@@ -2,19 +2,27 @@ package download
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v4/errs"
-	"github.com/weiweimhy/go-utils/v4/fsutil"
-	"github.com/weiweimhy/go-utils/v4/httputil"
-	"github.com/weiweimhy/go-utils/v4/task"
-	"go.uber.org/zap"
+	"github.com/weiweimhy/go-utils/v5/fsutil"
+	"github.com/weiweimhy/go-utils/v5/httputil"
+	"github.com/weiweimhy/go-utils/v5/task"
+)
+
+var (
+	// ErrManagerClosed is returned when adding work to a closed manager.
+	ErrManagerClosed = errors.New("download: manager is closed")
+	// ErrManagerNotStarted is returned when adding work before Start.
+	ErrManagerNotStarted = errors.New("download: manager not started")
 )
 
 // DownloadTask 表示一个下载任务
@@ -32,7 +40,7 @@ type DownloadManager struct {
 
 	workers    int
 	bufferSize int
-	log        *zap.Logger
+	log        *slog.Logger
 
 	wg        sync.WaitGroup
 	closeOnce sync.Once
@@ -66,7 +74,7 @@ func WithClient(c *http.Client) DMOption {
 
 // WithLogger sets an optional logger for manager lifecycle and failures.
 // When unset, the manager stays silent by default.
-func WithLogger(log *zap.Logger) DMOption {
+func WithLogger(log *slog.Logger) DMOption {
 	return func(dm *DownloadManager) { dm.log = log }
 }
 
@@ -92,7 +100,6 @@ func NewDownloadManager(opts ...DMOption) *DownloadManager {
 		client:     httputil.DefaultHTTPClient,
 		workers:    20,
 		bufferSize: 100,
-		log:        zap.NewNop(),
 	}
 	for _, opt := range opts {
 		opt(dm)
@@ -123,10 +130,9 @@ func (dm *DownloadManager) StartWithConfig(ctx context.Context, workers, bufferS
 		task.WithLogger(dm.log),
 	)
 
-	dm.log.Info("download manager started",
-		zap.Int("workers", workers),
-		zap.Int("buffer", bufferSize),
-	)
+	if dm.log != nil {
+		dm.log.InfoContext(dm.ctx, "download manager started", "workers", workers, "buffer", bufferSize)
+	}
 	return nil
 }
 
@@ -138,10 +144,10 @@ func (dm *DownloadManager) Add(url, savePath string) error {
 // AddWithCallback 添加带回调的下载任务
 func (dm *DownloadManager) AddWithCallback(url, savePath string, callback func(url, savePath string, err error)) error {
 	if dm.closed.Load() {
-		return errs.ErrDownloadManagerClosed
+		return ErrManagerClosed
 	}
 	if dm.pool == nil {
-		return errs.ErrDownloadManagerNotStarted
+		return ErrManagerNotStarted
 	}
 
 	dm.wg.Add(1)
@@ -150,12 +156,8 @@ func (dm *DownloadManager) AddWithCallback(url, savePath string, callback func(u
 		defer dm.wg.Done()
 
 		err := downloadFile(ctx, dm.client, url, savePath)
-		if err != nil {
-			dm.log.Warn("download failed",
-				zap.String("url", url),
-				zap.String("path", savePath),
-				zap.Error(err),
-			)
+		if err != nil && dm.log != nil {
+			dm.log.WarnContext(ctx, "download failed", "url", url, "path", savePath, "error", err)
 		}
 
 		if callback != nil {
@@ -222,20 +224,50 @@ func downloadFile(ctx context.Context, client *http.Client, url string, path str
 		return fmt.Errorf("http error: status %d", resp.StatusCode)
 	}
 
-	if err := fsutil.CreateParentDir(path); err != nil {
-		return fmt.Errorf("create dir failed: %w", err)
-	}
-
-	file, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("create file failed: %w", err)
-	}
-	defer file.Close()
-
-	_, err = io.Copy(file, resp.Body)
-	if err != nil {
+	if err := writeResponseAtomic(path, resp.Body); err != nil {
 		return fmt.Errorf("write file failed: %w", err)
 	}
+	return nil
+}
 
+func writeResponseAtomic(path string, body io.Reader) error {
+	if err := fsutil.EnsureParentDir(path, fsutil.DefaultDirPerm); err != nil {
+		return err
+	}
+
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+	if dir == "." {
+		dir = "."
+	}
+	tmp, err := os.CreateTemp(dir, "."+base+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	keepTemp := false
+	defer func() {
+		_ = tmp.Close()
+		if !keepTemp {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+
+	if err := tmp.Chmod(fsutil.DefaultFilePerm); err != nil {
+		return err
+	}
+	if _, err := io.Copy(tmp, body); err != nil {
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return err
+	}
+	keepTemp = true
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/weiweimhy/go-utils/v4/httputil"
+	"github.com/weiweimhy/go-utils/v5/httputil"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

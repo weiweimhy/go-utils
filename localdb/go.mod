@@ -1,0 +1,12 @@
+module github.com/weiweimhy/go-utils/v5/localdb
+
+go 1.24.0
+
+require (
+	github.com/weiweimhy/go-utils/v5 v5.0.0
+	go.etcd.io/bbolt v1.4.3
+)
+
+require golang.org/x/sys v0.40.0 // indirect
+
+replace github.com/weiweimhy/go-utils/v5 => ..

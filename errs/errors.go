@@ -2,7 +2,7 @@ package errs
 
 import "errors"
 
-// 通用错误定义，可用于 errors.Is() 判断
+// 通用错误定义，可用于 errors.Is() 判断。
 var (
 	// ErrNotFound 资源不存在
 	ErrNotFound = errors.New("resource not found")
@@ -33,40 +33,4 @@ var (
 
 	// ErrEmpty 空数据
 	ErrEmpty = errors.New("empty data")
-)
-
-// Download 包专用错误
-var (
-	ErrDownloadManagerClosed     = errors.New("download: manager is closed")
-	ErrDownloadManagerNotStarted = errors.New("download: manager not started")
-)
-
-// Task 包专用错误
-var (
-	ErrWorkerPoolClosed = errors.New("task: worker pool is closed")
-)
-
-// HTML 解析专用错误
-var (
-	ErrHTMLParseError = errors.New("htmlutil: failed to parse html")
-)
-
-// JWT 专用错误
-var (
-	// ErrJWTSecretEmpty 密钥为空
-	ErrJWTSecretEmpty = errors.New("jwt: secret is empty")
-	// ErrJWTKeyMissing 签名/验证密钥缺失
-	ErrJWTKeyMissing = errors.New("jwt: signing or verification key is missing")
-	// ErrJWTPrivateKeyMissing 私钥缺失（用于签名）
-	ErrJWTPrivateKeyMissing = errors.New("jwt: private key is missing for signing")
-	// ErrJWTPublicKeyMissing 公钥缺失（用于验证）
-	ErrJWTPublicKeyMissing = errors.New("jwt: public key is missing for verification")
-	// ErrJWTTokenExpired 令牌过期
-	ErrJWTTokenExpired = errors.New("jwt: token is expired")
-	// ErrJWTTokenInvalid 令牌无效
-	ErrJWTTokenInvalid = errors.New("jwt: token is invalid")
-	// ErrJWTTokenMalformed 令牌格式错误
-	ErrJWTTokenMalformed = errors.New("jwt: token is malformed")
-	// ErrJWTClaimsInvalid Claims 无效
-	ErrJWTClaimsInvalid = errors.New("jwt: claims are invalid")
 )
