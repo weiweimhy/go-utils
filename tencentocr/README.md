@@ -5,7 +5,7 @@
 ## 安装
 
 ```bash
-go get github.com/weiweimhy/go-utils/v6/tencentocr
+go get github.com/weiweimhy/go-utils/tencentocr/v6
 ```
 
 ## 特性
@@ -19,7 +19,7 @@ go get github.com/weiweimhy/go-utils/v6/tencentocr
 ```go
 import (
 	"context"
-	"github.com/weiweimhy/go-utils/v6/tencentocr"
+	"github.com/weiweimhy/go-utils/tencentocr/v6"
 )
 
 func main() {
@@ -41,6 +41,6 @@ func main() {
 
 ## 版本说明
 
-- 模块路径：`github.com/weiweimhy/go-utils/v6/tencentocr`
+- 模块路径：`github.com/weiweimhy/go-utils/tencentocr/v6`
 - 作为重依赖子模块独立维护
 - 适合按需引入，避免主模块携带云 SDK 依赖

@@ -1,4 +1,4 @@
-module github.com/weiweimhy/go-utils/v6/logger
+module github.com/weiweimhy/go-utils/logger/v6
 
 go 1.24.0
 

@@ -1,4 +1,4 @@
-module github.com/weiweimhy/go-utils/v6/htmlutil
+module github.com/weiweimhy/go-utils/htmlutil/v6
 
 go 1.24.0
 

@@ -27,15 +27,15 @@ go get github.com/weiweimhy/go-utils/v6
 按需安装扩展子模块：
 
 ```bash
-go get github.com/weiweimhy/go-utils/v6/download
-go get github.com/weiweimhy/go-utils/v6/epub
-go get github.com/weiweimhy/go-utils/v6/htmlutil
-go get github.com/weiweimhy/go-utils/v6/jwt
-go get github.com/weiweimhy/go-utils/v6/localdb
-go get github.com/weiweimhy/go-utils/v6/logger
-go get github.com/weiweimhy/go-utils/v6/mongo
-go get github.com/weiweimhy/go-utils/v6/wechat
-go get github.com/weiweimhy/go-utils/v6/tencentocr
+go get github.com/weiweimhy/go-utils/download/v6
+go get github.com/weiweimhy/go-utils/epub/v6
+go get github.com/weiweimhy/go-utils/htmlutil/v6
+go get github.com/weiweimhy/go-utils/jwt/v6
+go get github.com/weiweimhy/go-utils/localdb/v6
+go get github.com/weiweimhy/go-utils/logger/v6
+go get github.com/weiweimhy/go-utils/mongo/v6
+go get github.com/weiweimhy/go-utils/wechat/v6
+go get github.com/weiweimhy/go-utils/tencentocr/v6
 ```
 
 从 v5.x 迁移到 v6：
@@ -45,10 +45,10 @@ go get github.com/weiweimhy/go-utils/v6@latest
 go mod tidy
 ```
 
-将 import 路径从 `/v5` 改为 `/v6`。如果使用 `logger`、`jwt`、`localdb`、`htmlutil`、`download`、`epub`，请改为对应子模块路径，例如：
+根模块包的 import 路径从 `/v5/<包名>` 改为 `/v6/<包名>`。`logger`、`jwt`、`localdb`、`htmlutil`、`download`、`epub` 等子模块则改为 `/<子模块>/v6`，例如：
 
 ```go
-import "github.com/weiweimhy/go-utils/v6/jwt"
+import "github.com/weiweimhy/go-utils/jwt/v6"
 ```
 
 v6 的 JWT 校验默认强制匹配受信任的签发者（issuer）。升级前请为每个验证器配置
