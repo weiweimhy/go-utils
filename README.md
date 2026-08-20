@@ -1,10 +1,10 @@
 # Go-Utils
 
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D1.24-blue.svg)](https://golang.org)
-[![Go Reference](https://pkg.go.dev/badge/github.com/weiweimhy/go-utils/v5.svg)](https://pkg.go.dev/github.com/weiweimhy/go-utils/v5)
+[![Go Reference](https://pkg.go.dev/badge/github.com/weiweimhy/go-utils/v6.svg)](https://pkg.go.dev/github.com/weiweimhy/go-utils/v6)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-`go-utils` 是一个面向工程复用的 Go 工具库。v5 根模块只保留标准库优先、低副作用、低依赖的基础能力；日志、JWT、本地 KV、下载、HTML、EPUB 和外部平台集成迁入子模块，避免轻量使用者被重依赖影响。
+`go-utils` 是一个面向工程复用的 Go 工具库。v6 根模块只保留标准库优先、低副作用、低依赖的基础能力；日志、JWT、本地 KV、下载、HTML、EPUB 和外部平台集成迁入子模块，避免轻量使用者被重依赖影响。
 
 ## 核心特性
 
@@ -21,35 +21,38 @@
 ## 安装
 
 ```bash
-go get github.com/weiweimhy/go-utils/v5
+go get github.com/weiweimhy/go-utils/v6
 ```
 
 按需安装扩展子模块：
 
 ```bash
-go get github.com/weiweimhy/go-utils/v5/download
-go get github.com/weiweimhy/go-utils/v5/epub
-go get github.com/weiweimhy/go-utils/v5/htmlutil
-go get github.com/weiweimhy/go-utils/v5/jwt
-go get github.com/weiweimhy/go-utils/v5/localdb
-go get github.com/weiweimhy/go-utils/v5/logger
-go get github.com/weiweimhy/go-utils/v5/mongo
-go get github.com/weiweimhy/go-utils/v5/wechat
-go get github.com/weiweimhy/go-utils/v5/tencentocr
+go get github.com/weiweimhy/go-utils/v6/download
+go get github.com/weiweimhy/go-utils/v6/epub
+go get github.com/weiweimhy/go-utils/v6/htmlutil
+go get github.com/weiweimhy/go-utils/v6/jwt
+go get github.com/weiweimhy/go-utils/v6/localdb
+go get github.com/weiweimhy/go-utils/v6/logger
+go get github.com/weiweimhy/go-utils/v6/mongo
+go get github.com/weiweimhy/go-utils/v6/wechat
+go get github.com/weiweimhy/go-utils/v6/tencentocr
 ```
 
-从 v4.x 迁移到 v5：
+从 v5.x 迁移到 v6：
 
 ```bash
-go get github.com/weiweimhy/go-utils/v5@latest
+go get github.com/weiweimhy/go-utils/v6@latest
 go mod tidy
 ```
 
-将 import 路径从 `/v4` 改为 `/v5`。如果使用 `logger`、`jwt`、`localdb`、`htmlutil`、`download`、`epub`，请改为对应子模块路径，例如：
+将 import 路径从 `/v5` 改为 `/v6`。如果使用 `logger`、`jwt`、`localdb`、`htmlutil`、`download`、`epub`，请改为对应子模块路径，例如：
 
 ```go
-import "github.com/weiweimhy/go-utils/v5/jwt"
+import "github.com/weiweimhy/go-utils/v6/jwt"
 ```
+
+v6 的 JWT 校验默认强制匹配受信任的签发者（issuer）。升级前请为每个验证器配置
+受信任 issuer；未配置或令牌的 issuer 不匹配时，验证会失败。
 
 ## 包速查
 
@@ -107,7 +110,7 @@ import "github.com/weiweimhy/go-utils/v5/jwt"
 ### 安全写文件
 
 ```go
-import "github.com/weiweimhy/go-utils/v5/fsutil"
+import "github.com/weiweimhy/go-utils/v6/fsutil"
 
 err := fsutil.SecureWriteFile("./data/secret.json", []byte(`{"ok":true}`))
 ```
@@ -115,7 +118,7 @@ err := fsutil.SecureWriteFile("./data/secret.json", []byte(`{"ok":true}`))
 ### JSON 文件
 
 ```go
-import "github.com/weiweimhy/go-utils/v5/jsonfile"
+import "github.com/weiweimhy/go-utils/v6/jsonfile"
 
 type Config struct {
     Port int `json:"port"`
@@ -130,7 +133,7 @@ err = jsonfile.Save("./config/app.json", cfg, jsonfile.Options{AtomicSave: true}
 ### HTTP 大小限制
 
 ```go
-import "github.com/weiweimhy/go-utils/v5/httputil"
+import "github.com/weiweimhy/go-utils/v6/httputil"
 
 data, err := httputil.GetBytes(ctx, "https://api.example.com/data", httputil.Options{
     MaxBytes: 2 << 20,
@@ -143,7 +146,7 @@ OAuth 等 URL 查询参数；需要诊断响应体时须显式设置 `CaptureErr
 ### 严格 JSON 边界解码
 
 ```go
-import "github.com/weiweimhy/go-utils/v5/jsonutil"
+import "github.com/weiweimhy/go-utils/v6/jsonutil"
 
 type ProviderResponse struct {
     ID string `json:"id"`
@@ -158,8 +161,8 @@ value, err := jsonutil.DecodeStrict[ProviderResponse](responseBody, 1<<20)
 
 ```go
 import (
-    "github.com/weiweimhy/go-utils/v5/fsutil"
-    "github.com/weiweimhy/go-utils/v5/pathutil"
+    "github.com/weiweimhy/go-utils/v6/fsutil"
+    "github.com/weiweimhy/go-utils/v6/pathutil"
 )
 
 safePath, err := pathutil.ResolveExistingDescendant(workspace, userPath, pathutil.ResolveOptions{})
@@ -175,7 +178,7 @@ data, err := fsutil.ReadFileLimited(safePath, 2<<20)
 ### 路径边界
 
 ```go
-import "github.com/weiweimhy/go-utils/v5/pathutil"
+import "github.com/weiweimhy/go-utils/v6/pathutil"
 
 rel, err := pathutil.CleanRelative(userInput)
 if err != nil {
@@ -189,7 +192,7 @@ if !pathutil.IsWithin(filepath.Join(root, rel), root) {
 ### Worker Pool
 
 ```go
-import "github.com/weiweimhy/go-utils/v5/task"
+import "github.com/weiweimhy/go-utils/v6/task"
 
 pool := task.NewWorkerPool(ctx, task.WithWorkerCount(4), task.WithBufferSize(16))
 defer pool.Close(time.Second)

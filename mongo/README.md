@@ -5,7 +5,7 @@
 ## 安装
 
 ```bash
-go get github.com/weiweimhy/go-utils/v5/mongo
+go get github.com/weiweimhy/go-utils/v6/mongo
 ```
 
 ## 特性
@@ -19,7 +19,7 @@ go get github.com/weiweimhy/go-utils/v5/mongo
 ```go
 import (
 	"context"
-	"github.com/weiweimhy/go-utils/v5/mongo"
+	"github.com/weiweimhy/go-utils/v6/mongo"
 )
 
 func main() {
@@ -43,6 +43,6 @@ func main() {
 
 ## 版本说明
 
-- 模块路径：`github.com/weiweimhy/go-utils/v5/mongo`
+- 模块路径：`github.com/weiweimhy/go-utils/v6/mongo`
 - 作为独立子模块维护
 - 对外 API 的不兼容变更应通过新的 major 版本发布
