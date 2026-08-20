@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const testIssuer = "https://issuer.example.test"
+
 func TestNewJWT(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -19,13 +21,24 @@ func TestNewJWT(t *testing.T) {
 	}{
 		{
 			name:    "empty key should fail",
-			opts:    []Option{},
+			opts:    []Option{WithIssuer(testIssuer)},
 			wantErr: ErrKeyMissing,
+		},
+		{
+			name:    "missing issuer should fail",
+			opts:    []Option{WithSecret("test-secret-key")},
+			wantErr: ErrIssuerRequired,
+		},
+		{
+			name:    "blank issuer should fail",
+			opts:    []Option{WithSecret("test-secret-key"), WithIssuer(" \t ")},
+			wantErr: ErrIssuerRequired,
 		},
 		{
 			name: "valid secret should succeed",
 			opts: []Option{
 				WithSecret("test-secret-key"),
+				WithIssuer(testIssuer),
 			},
 			wantErr: nil,
 		},
@@ -35,7 +48,7 @@ func TestNewJWT(t *testing.T) {
 				WithSecret("test-secret-key"),
 				WithAccessTokenExpiry(30 * time.Minute),
 				WithRefreshTokenExpiry(24 * time.Hour),
-				WithIssuer("test-issuer"),
+				WithIssuer(testIssuer),
 			},
 			wantErr: nil,
 		},
@@ -56,7 +69,7 @@ func TestNewJWT(t *testing.T) {
 }
 
 func TestGenerate(t *testing.T) {
-	j, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"))
+	j, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"), WithIssuer(testIssuer))
 	if err != nil {
 		t.Fatalf("NewJWT() error = %v", err)
 	}
@@ -79,7 +92,7 @@ func TestGenerate(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
-	j, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"))
+	j, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"), WithIssuer(testIssuer))
 	if err != nil {
 		t.Fatalf("NewJWT() error = %v", err)
 	}
@@ -109,6 +122,7 @@ func TestValidate(t *testing.T) {
 func TestValidateExpired(t *testing.T) {
 	j, err := NewJWT(
 		WithSecret("test-secret-key-256-bits-long!!"),
+		WithIssuer(testIssuer),
 		WithAccessTokenExpiry(-1*time.Hour), // 已过期
 	)
 	if err != nil {
@@ -128,7 +142,7 @@ func TestValidateExpired(t *testing.T) {
 }
 
 func TestValidateInvalid(t *testing.T) {
-	j, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"))
+	j, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"), WithIssuer(testIssuer))
 	if err != nil {
 		t.Fatalf("NewJWT() error = %v", err)
 	}
@@ -163,7 +177,7 @@ func TestValidateInvalid(t *testing.T) {
 }
 
 func TestRefresh(t *testing.T) {
-	j, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"))
+	j, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"), WithIssuer(testIssuer))
 	if err != nil {
 		t.Fatalf("NewJWT() error = %v", err)
 	}
@@ -203,8 +217,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.RefreshTokenExpiry != 7*24*time.Hour {
 		t.Errorf("DefaultConfig() RefreshTokenExpiry = %v, want %v", cfg.RefreshTokenExpiry, 7*24*time.Hour)
 	}
-	if cfg.Issuer != "go-utils" {
-		t.Errorf("DefaultConfig() Issuer = %v, want %v", cfg.Issuer, "go-utils")
+	if cfg.Issuer != "" {
+		t.Errorf("DefaultConfig() Issuer = %q, want empty", cfg.Issuer)
 	}
 }
 
@@ -232,6 +246,7 @@ func TestNewJWT_RSA(t *testing.T) {
 			name: "with private key only",
 			opts: []Option{
 				WithPrivateKey(privateKey),
+				WithIssuer(testIssuer),
 			},
 			wantErr: nil,
 		},
@@ -239,6 +254,7 @@ func TestNewJWT_RSA(t *testing.T) {
 			name: "with public key only",
 			opts: []Option{
 				WithPublicKey(&privateKey.PublicKey),
+				WithIssuer(testIssuer),
 			},
 			wantErr: nil,
 		},
@@ -247,6 +263,7 @@ func TestNewJWT_RSA(t *testing.T) {
 			opts: []Option{
 				WithPrivateKey(privateKey),
 				WithPublicKey(&privateKey.PublicKey),
+				WithIssuer(testIssuer),
 			},
 			wantErr: nil,
 		},
@@ -270,7 +287,7 @@ func TestRSAGenerateAndValidate(t *testing.T) {
 	privateKey := generateTestRSAKeyPair(t)
 
 	// 使用私钥创建 JWT 实例（同时用于签名和验证）
-	j, err := NewJWT(WithPrivateKey(privateKey))
+	j, err := NewJWT(WithPrivateKey(privateKey), WithIssuer(testIssuer))
 	if err != nil {
 		t.Fatalf("NewJWT() error = %v", err)
 	}
@@ -314,7 +331,7 @@ func TestRSADistributedScenario(t *testing.T) {
 	privateKey := generateTestRSAKeyPair(t)
 
 	// 认证中心：使用私钥签发
-	authCenter, err := NewJWT(WithPrivateKey(privateKey))
+	authCenter, err := NewJWT(WithPrivateKey(privateKey), WithIssuer(testIssuer))
 	if err != nil {
 		t.Fatalf("NewJWT() for auth center error = %v", err)
 	}
@@ -329,7 +346,7 @@ func TestRSADistributedScenario(t *testing.T) {
 	}
 
 	// 业务服务：只使用公钥验证
-	businessService, err := NewJWT(WithPublicKey(&privateKey.PublicKey))
+	businessService, err := NewJWT(WithPublicKey(&privateKey.PublicKey), WithIssuer(testIssuer))
 	if err != nil {
 		t.Fatalf("NewJWT() for business service error = %v", err)
 	}
@@ -354,7 +371,7 @@ func TestRSADistributedScenario(t *testing.T) {
 func TestRSARefresh(t *testing.T) {
 	privateKey := generateTestRSAKeyPair(t)
 
-	j, err := NewJWT(WithPrivateKey(privateKey))
+	j, err := NewJWT(WithPrivateKey(privateKey), WithIssuer(testIssuer))
 	if err != nil {
 		t.Fatalf("NewJWT() error = %v", err)
 	}
@@ -394,6 +411,7 @@ func TestRSAValidateExpired(t *testing.T) {
 
 	j, err := NewJWT(
 		WithPrivateKey(privateKey),
+		WithIssuer(testIssuer),
 		WithAccessTokenExpiry(-1*time.Hour), // 已过期
 	)
 	if err != nil {
@@ -413,7 +431,7 @@ func TestRSAValidateExpired(t *testing.T) {
 }
 
 func TestContextCancellation(t *testing.T) {
-	j, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"))
+	j, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"), WithIssuer(testIssuer))
 	if err != nil {
 		t.Fatalf("NewJWT() error = %v", err)
 	}
@@ -473,6 +491,7 @@ func TestTimeFuncControlsGenerationAndValidation(t *testing.T) {
 	fixed := time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC)
 	j, err := NewJWT(
 		WithSecret("test-secret-key-256-bits-long!!"),
+		WithIssuer(testIssuer),
 		WithTimeFunc(func() time.Time { return fixed }),
 	)
 	if err != nil {
@@ -494,12 +513,12 @@ func TestCrossAlgorithmValidation(t *testing.T) {
 	// 测试：使用 HS256 签发的令牌不能被 RS256 验证（反之亦然）
 	privateKey := generateTestRSAKeyPair(t)
 
-	hmacJWT, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"))
+	hmacJWT, err := NewJWT(WithSecret("test-secret-key-256-bits-long!!"), WithIssuer(testIssuer))
 	if err != nil {
 		t.Fatalf("NewJWT() HMAC error = %v", err)
 	}
 
-	rsaJWT, err := NewJWT(WithPrivateKey(privateKey))
+	rsaJWT, err := NewJWT(WithPrivateKey(privateKey), WithIssuer(testIssuer))
 	if err != nil {
 		t.Fatalf("NewJWT() RSA error = %v", err)
 	}
@@ -547,6 +566,7 @@ func TestRSAGenerateAndValidate_PEM(t *testing.T) {
 	j, err := NewJWT(
 		WithPrivateKeyPEM(privatePEM),
 		WithPublicKeyPEM(publicPEM),
+		WithIssuer(testIssuer),
 	)
 	if err != nil {
 		t.Fatalf("NewJWT() with PEM error = %v", err)

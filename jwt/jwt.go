@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -15,6 +16,8 @@ import (
 var (
 	// ErrKeyMissing indicates no signing or verification key was configured.
 	ErrKeyMissing = errors.New("jwt: signing or verification key is missing")
+	// ErrIssuerRequired indicates no trusted issuer was configured.
+	ErrIssuerRequired = errors.New("jwt: issuer is required")
 	// ErrPrivateKeyMissing indicates a private key is required for signing.
 	ErrPrivateKeyMissing = errors.New("jwt: private key is missing for signing")
 	// ErrPublicKeyMissing indicates a public key is required for verification.
@@ -59,7 +62,7 @@ type Config struct {
 	Secret             string           `yaml:"secret"`               // HMAC 签名密钥，必须保密
 	AccessTokenExpiry  time.Duration    `yaml:"access_token_expiry"`  // 访问令牌有效期，默认 15 分钟
 	RefreshTokenExpiry time.Duration    `yaml:"refresh_token_expiry"` // 刷新令牌有效期，默认 7 天
-	Issuer             string           `yaml:"issuer"`               // 签发者名称，默认 "go-utils"
+	Issuer             string           `yaml:"issuer"`               // 必填：受信任的签发者名称
 	Audience           string           `yaml:"audience"`             // 可选的预期受众
 	TimeFunc           func() time.Time `yaml:"-"`                    // 可注入时钟，未设置时使用 time.Now
 
@@ -78,7 +81,6 @@ func DefaultConfig() Config {
 	return Config{
 		AccessTokenExpiry:  15 * time.Minute,
 		RefreshTokenExpiry: 7 * 24 * time.Hour,
-		Issuer:             "go-utils",
 	}
 }
 
@@ -106,7 +108,7 @@ func WithRefreshTokenExpiry(d time.Duration) Option {
 	}
 }
 
-// WithIssuer 设置签发者。
+// WithIssuer sets the required trusted issuer for generated and validated tokens.
 func WithIssuer(issuer string) Option {
 	return func(c *Config) {
 		c.Issuer = issuer
@@ -203,10 +205,14 @@ type JWT struct {
 // 支持两种模式：
 //   - HMAC 模式：提供 Secret，使用 HS256 算法
 //   - RSA 模式：提供 PrivateKey 和/或 PublicKey，使用 RS256 算法
+//
+// A non-empty issuer configured with WithIssuer is required.
 func NewJWT(opts ...Option) (*JWT, error) {
 	cfg := DefaultConfig()
 	for _, opt := range opts {
-		opt(&cfg)
+		if opt != nil {
+			opt(&cfg)
+		}
 	}
 
 	// 自动选择签名方法
@@ -221,6 +227,10 @@ func NewJWT(opts ...Option) (*JWT, error) {
 	// 验证密钥配置
 	if cfg.Secret == "" && cfg.PrivateKey == nil && cfg.PublicKey == nil {
 		return nil, ErrKeyMissing
+	}
+	cfg.Issuer = strings.TrimSpace(cfg.Issuer)
+	if cfg.Issuer == "" {
+		return nil, ErrIssuerRequired
 	}
 
 	now := cfg.TimeFunc
@@ -271,9 +281,7 @@ func (j *JWT) Validate(ctx context.Context, tokenString string) (*Claims, error)
 	parserOptions := []jwt.ParserOption{
 		jwt.WithValidMethods([]string{j.cfg.SigningMethod.Alg()}),
 		jwt.WithTimeFunc(j.now),
-	}
-	if j.cfg.Issuer != "" {
-		parserOptions = append(parserOptions, jwt.WithIssuer(j.cfg.Issuer))
+		jwt.WithIssuer(j.cfg.Issuer),
 	}
 	if j.cfg.Audience != "" {
 		parserOptions = append(parserOptions, jwt.WithAudience(j.cfg.Audience))
