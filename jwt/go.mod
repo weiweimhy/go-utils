@@ -1,4 +1,4 @@
-module github.com/weiweimhy/go-utils/v5/jwt
+module github.com/weiweimhy/go-utils/v6/jwt
 
 go 1.24.0
 

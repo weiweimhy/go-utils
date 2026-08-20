@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/weiweimhy/go-utils/v5/streamutil"
+	"github.com/weiweimhy/go-utils/v6/streamutil"
 )
 
 var (

@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/weiweimhy/go-utils/v5/fsutil"
+	"github.com/weiweimhy/go-utils/v6/fsutil"
 )
 
 // RedactFunc can sanitize a record before it is written.

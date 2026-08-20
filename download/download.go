@@ -13,9 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v5/fsutil"
-	"github.com/weiweimhy/go-utils/v5/httputil"
-	"github.com/weiweimhy/go-utils/v5/task"
+	"github.com/weiweimhy/go-utils/v6/fsutil"
+	"github.com/weiweimhy/go-utils/v6/httputil"
+	"github.com/weiweimhy/go-utils/v6/task"
 )
 
 var (

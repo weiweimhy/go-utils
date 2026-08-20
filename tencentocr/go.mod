@@ -1,4 +1,4 @@
-module github.com/weiweimhy/go-utils/v5/tencentocr
+module github.com/weiweimhy/go-utils/v6/tencentocr
 
 go 1.24.0
 

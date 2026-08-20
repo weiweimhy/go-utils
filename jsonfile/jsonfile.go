@@ -5,7 +5,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/weiweimhy/go-utils/v5/fsutil"
+	"github.com/weiweimhy/go-utils/v6/fsutil"
 )
 
 // Options controls JSON file load and save behavior.

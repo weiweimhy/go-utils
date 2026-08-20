@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v5/fsutil"
+	"github.com/weiweimhy/go-utils/v6/fsutil"
 	"go.etcd.io/bbolt"
 )
 

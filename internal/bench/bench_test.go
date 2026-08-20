@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v5/fsutil"
-	"github.com/weiweimhy/go-utils/v5/regexputil"
-	"github.com/weiweimhy/go-utils/v5/task"
+	"github.com/weiweimhy/go-utils/v6/fsutil"
+	"github.com/weiweimhy/go-utils/v6/regexputil"
+	"github.com/weiweimhy/go-utils/v6/task"
 )
 
 func BenchmarkRegexp(b *testing.B) {

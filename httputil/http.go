@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/weiweimhy/go-utils/v5/securityutil"
-	"github.com/weiweimhy/go-utils/v5/streamutil"
+	"github.com/weiweimhy/go-utils/v6/securityutil"
+	"github.com/weiweimhy/go-utils/v6/streamutil"
 )
 
 const (

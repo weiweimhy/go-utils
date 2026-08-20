@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/weiweimhy/go-utils/v5/cryptoutil"
-	"github.com/weiweimhy/go-utils/v5/streamutil"
+	"github.com/weiweimhy/go-utils/v6/cryptoutil"
+	"github.com/weiweimhy/go-utils/v6/streamutil"
 )
 
 const (

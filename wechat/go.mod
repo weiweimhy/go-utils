@@ -1,7 +1,7 @@
-module github.com/weiweimhy/go-utils/v5/wechat
+module github.com/weiweimhy/go-utils/v6/wechat
 
 go 1.24.0
 
-require github.com/weiweimhy/go-utils/v5 v5.0.0
+require github.com/weiweimhy/go-utils/v6 v6.0.0
 
-replace github.com/weiweimhy/go-utils/v5 => ..
+replace github.com/weiweimhy/go-utils/v6 => ..
