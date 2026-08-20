@@ -35,4 +35,17 @@ func TestRandomHelpers(t *testing.T) {
 	if !strings.HasPrefix(b64ID, "tok_") {
 		t.Fatalf("unexpected base64 ID %q", b64ID)
 	}
+
+	digits, err := RandomDigits(12)
+	if err != nil {
+		t.Fatalf("RandomDigits() error = %v", err)
+	}
+	if len(digits) != 12 {
+		t.Fatalf("RandomDigits() length = %d, want 12", len(digits))
+	}
+	for _, digit := range digits {
+		if digit < '0' || digit > '9' {
+			t.Fatalf("RandomDigits() returned non-digit %q", digit)
+		}
+	}
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/weiweimhy/go-utils/v5/httputil"
 )
@@ -19,7 +19,11 @@ type Session struct {
 	ErrMsg     string `json:"errmsg"`
 }
 
+// JSCode2SessionURL is retained for compatibility. Call GetSession rather
+// than formatting this URL directly so query values are correctly escaped.
 const JSCode2SessionURL = "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code"
+
+const jsCode2SessionEndpoint = "https://api.weixin.qq.com/sns/jscode2session"
 
 // GetSession fetches a WeChat mini-program session and supports context cancellation.
 func GetSession(ctx context.Context, appID, secret, jsCode string) (Session, error) {
@@ -27,30 +31,23 @@ func GetSession(ctx context.Context, appID, secret, jsCode string) (Session, err
 		return Session{}, fmt.Errorf("appID, secret and jsCode are required")
 	}
 
-	url := fmt.Sprintf(JSCode2SessionURL, appID, secret, jsCode)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	endpoint, err := url.Parse(jsCode2SessionEndpoint)
 	if err != nil {
-		return Session{}, err
+		return Session{}, fmt.Errorf("parse wechat API endpoint: %w", err)
 	}
+	query := endpoint.Query()
+	query.Set("appid", appID)
+	query.Set("secret", secret)
+	query.Set("js_code", jsCode)
+	query.Set("grant_type", "authorization_code")
+	endpoint.RawQuery = query.Encode()
 
-	// 注意：此处直接使用 http.NewRequestWithContext 配合默认 HTTP 客户端
-	rsp, err := httputil.DefaultHTTPClient.Do(req)
+	body, err := httputil.GetBytes(ctx, endpoint.String(), httputil.Options{
+		MaxBytes:      1 << 20,
+		AllowedStatus: []int{http.StatusOK},
+	})
 	if err != nil {
 		return Session{}, fmt.Errorf("failed to request wechat API: %w", err)
-	}
-	defer func() {
-		if rsp.Body != nil {
-			_ = rsp.Body.Close()
-		}
-	}()
-
-	if rsp.StatusCode != http.StatusOK {
-		return Session{}, fmt.Errorf("wechat API status: %d", rsp.StatusCode)
-	}
-
-	body, err := io.ReadAll(rsp.Body)
-	if err != nil {
-		return Session{}, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	var session Session

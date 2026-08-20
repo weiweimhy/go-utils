@@ -56,10 +56,12 @@ type Claims struct {
 
 // Config 包含 JWT 模块的配置参数。
 type Config struct {
-	Secret             string        `yaml:"secret"`               // HMAC 签名密钥，必须保密
-	AccessTokenExpiry  time.Duration `yaml:"access_token_expiry"`  // 访问令牌有效期，默认 15 分钟
-	RefreshTokenExpiry time.Duration `yaml:"refresh_token_expiry"` // 刷新令牌有效期，默认 7 天
-	Issuer             string        `yaml:"issuer"`               // 签发者名称，默认 "go-utils"
+	Secret             string           `yaml:"secret"`               // HMAC 签名密钥，必须保密
+	AccessTokenExpiry  time.Duration    `yaml:"access_token_expiry"`  // 访问令牌有效期，默认 15 分钟
+	RefreshTokenExpiry time.Duration    `yaml:"refresh_token_expiry"` // 刷新令牌有效期，默认 7 天
+	Issuer             string           `yaml:"issuer"`               // 签发者名称，默认 "go-utils"
+	Audience           string           `yaml:"audience"`             // 可选的预期受众
+	TimeFunc           func() time.Time `yaml:"-"`                    // 可注入时钟，未设置时使用 time.Now
 
 	// RSA 密钥对，用于非对称签名（适合分布式场景）
 	PrivateKey *rsa.PrivateKey `yaml:"-"` // RSA 私钥，用于签名（认证中心持有）
@@ -108,6 +110,21 @@ func WithRefreshTokenExpiry(d time.Duration) Option {
 func WithIssuer(issuer string) Option {
 	return func(c *Config) {
 		c.Issuer = issuer
+	}
+}
+
+// WithAudience sets the expected audience for generated and validated tokens.
+func WithAudience(audience string) Option {
+	return func(c *Config) {
+		c.Audience = audience
+	}
+}
+
+// WithTimeFunc injects the clock used for token generation and validation.
+// Passing nil restores the default time.Now clock.
+func WithTimeFunc(now func() time.Time) Option {
+	return func(c *Config) {
+		c.TimeFunc = now
 	}
 }
 
@@ -179,6 +196,7 @@ func WithSigningMethod(method jwt.SigningMethod) Option {
 // JWT provides token generation, validation, and refresh helpers.
 type JWT struct {
 	cfg Config
+	now func() time.Time
 }
 
 // NewJWT 创建并返回 JWT 实例。
@@ -205,7 +223,11 @@ func NewJWT(opts ...Option) (*JWT, error) {
 		return nil, ErrKeyMissing
 	}
 
-	return &JWT{cfg: cfg}, nil
+	now := cfg.TimeFunc
+	if now == nil {
+		now = time.Now
+	}
+	return &JWT{cfg: cfg, now: now}, nil
 }
 
 // Generate 生成访问令牌和刷新令牌对。
@@ -218,18 +240,18 @@ func (j *JWT) Generate(ctx context.Context, userID string, extra map[string]any)
 		return nil, ErrPrivateKeyMissing
 	}
 
-	now := time.Now()
+	now := j.now()
 	accessExpiresAt := now.Add(j.cfg.AccessTokenExpiry)
 	refreshExpiresAt := now.Add(j.cfg.RefreshTokenExpiry)
 
 	// 生成访问令牌
-	accessToken, err := j.generateToken(userID, TokenTypeAccess, extra, accessExpiresAt)
+	accessToken, err := j.generateToken(userID, TokenTypeAccess, extra, now, accessExpiresAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
 	// 生成刷新令牌
-	refreshToken, err := j.generateToken(userID, TokenTypeRefresh, nil, refreshExpiresAt)
+	refreshToken, err := j.generateToken(userID, TokenTypeRefresh, nil, now, refreshExpiresAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
@@ -245,6 +267,16 @@ func (j *JWT) Generate(ctx context.Context, userID string, extra map[string]any)
 func (j *JWT) Validate(ctx context.Context, tokenString string) (*Claims, error) {
 	if err := ctxErr(ctx); err != nil {
 		return nil, err
+	}
+	parserOptions := []jwt.ParserOption{
+		jwt.WithValidMethods([]string{j.cfg.SigningMethod.Alg()}),
+		jwt.WithTimeFunc(j.now),
+	}
+	if j.cfg.Issuer != "" {
+		parserOptions = append(parserOptions, jwt.WithIssuer(j.cfg.Issuer))
+	}
+	if j.cfg.Audience != "" {
+		parserOptions = append(parserOptions, jwt.WithAudience(j.cfg.Audience))
 	}
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		// 根据 token 的签名方法返回对应的验证密钥
@@ -266,7 +298,7 @@ func (j *JWT) Validate(ctx context.Context, tokenString string) (*Claims, error)
 		default:
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-	})
+	}, parserOptions...)
 
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
@@ -301,7 +333,11 @@ func (j *JWT) Refresh(ctx context.Context, refreshToken string) (*TokenPair, err
 }
 
 // generateToken 生成单个令牌。
-func (j *JWT) generateToken(userID string, tokenType TokenType, extra map[string]any, expiresAt time.Time) (string, error) {
+func (j *JWT) generateToken(userID string, tokenType TokenType, extra map[string]any, now, expiresAt time.Time) (string, error) {
+	var audience jwt.ClaimStrings
+	if j.cfg.Audience != "" {
+		audience = jwt.ClaimStrings{j.cfg.Audience}
+	}
 	claims := &Claims{
 		UserID:    userID,
 		TokenType: tokenType,
@@ -309,9 +345,10 @@ func (j *JWT) generateToken(userID string, tokenType TokenType, extra map[string
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    j.cfg.Issuer,
 			Subject:   userID,
+			Audience:  audience,
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
 		},
 	}
 

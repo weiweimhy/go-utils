@@ -1,6 +1,7 @@
 package fsutil
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -54,5 +55,19 @@ func TestSecureWriteFileReplacesExistingAtomically(t *testing.T) {
 	}
 	if string(got) != "new" {
 		t.Fatalf("content = %q, want new", string(got))
+	}
+}
+
+func TestReadFileLimited(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "content.txt")
+	if err := os.WriteFile(path, []byte("hello"), 0600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	data, err := ReadFileLimited(path, 5)
+	if err != nil || string(data) != "hello" {
+		t.Fatalf("ReadFileLimited() = %q, %v", data, err)
+	}
+	if _, err := ReadFileLimited(path, 4); !errors.Is(err, ErrFileTooLarge) {
+		t.Fatalf("ReadFileLimited() error = %v, want ErrFileTooLarge", err)
 	}
 }

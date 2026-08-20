@@ -1,12 +1,30 @@
 package pathutil
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 )
+
+var (
+	// ErrNotDescendant is returned when a path is not a descendant of root.
+	ErrNotDescendant = errors.New("pathutil: path is not a descendant of root")
+	// ErrSymlink is returned when a checked path segment is a symbolic link.
+	ErrSymlink = errors.New("pathutil: symbolic links are not allowed")
+	// ErrReparsePoint is returned for Windows reparse points, including junctions.
+	ErrReparsePoint = errors.New("pathutil: reparse points are not allowed")
+)
+
+// ResolveOptions controls strict existing-path resolution.
+type ResolveOptions struct {
+	// AllowRoot permits target to resolve to root itself. The default requires a
+	// proper descendant.
+	AllowRoot bool
+}
 
 // SamePath reports whether a and b identify the same cleaned absolute path.
 func SamePath(a, b string) bool {
@@ -57,6 +75,95 @@ func CleanRelative(rel string) (string, error) {
 		return "", fmt.Errorf("pathutil: path escapes root: %q", rel)
 	}
 	return cleaned, nil
+}
+
+// ResolveExistingDescendant resolves an existing target beneath root while
+// rejecting symbolic links and Windows reparse points in every existing path
+// segment. target may be relative to root or absolute. The returned path is an
+// absolute resolved path. This check does not eliminate time-of-check to
+// time-of-use races; callers still need an appropriate filesystem boundary for
+// adversarial concurrent writers.
+func ResolveExistingDescendant(root, target string, opts ResolveOptions) (string, error) {
+	if root == "" {
+		return "", fmt.Errorf("pathutil: root is required")
+	}
+	if target == "" {
+		return "", fmt.Errorf("pathutil: target is required")
+	}
+
+	rootAbs, err := filepath.Abs(filepath.Clean(root))
+	if err != nil {
+		return "", fmt.Errorf("pathutil: resolve root: %w", err)
+	}
+	if err := validateExistingPathSegment(rootAbs); err != nil {
+		return "", fmt.Errorf("pathutil: validate root: %w", err)
+	}
+	rootInfo, err := os.Lstat(rootAbs)
+	if err != nil {
+		return "", fmt.Errorf("pathutil: stat root: %w", err)
+	}
+	if !rootInfo.IsDir() {
+		return "", fmt.Errorf("pathutil: root is not a directory: %s", rootAbs)
+	}
+
+	candidate := target
+	if !filepath.IsAbs(candidate) && filepath.VolumeName(candidate) == "" {
+		candidate = filepath.Join(rootAbs, candidate)
+	}
+	candidateAbs, err := filepath.Abs(filepath.Clean(candidate))
+	if err != nil {
+		return "", fmt.Errorf("pathutil: resolve target: %w", err)
+	}
+	if !IsWithin(candidateAbs, rootAbs) {
+		return "", fmt.Errorf("%w: %s", ErrNotDescendant, candidateAbs)
+	}
+	if SamePath(candidateAbs, rootAbs) && !opts.AllowRoot {
+		return "", fmt.Errorf("%w: target must not equal root", ErrNotDescendant)
+	}
+
+	rel, err := filepath.Rel(rootAbs, candidateAbs)
+	if err != nil {
+		return "", fmt.Errorf("pathutil: make target relative: %w", err)
+	}
+	current := rootAbs
+	if rel != "." {
+		for _, segment := range strings.Split(rel, string(filepath.Separator)) {
+			current = filepath.Join(current, segment)
+			if err := validateExistingPathSegment(current); err != nil {
+				return "", fmt.Errorf("pathutil: validate %s: %w", current, err)
+			}
+		}
+	}
+
+	resolvedRoot, err := filepath.EvalSymlinks(rootAbs)
+	if err != nil {
+		return "", fmt.Errorf("pathutil: resolve root links: %w", err)
+	}
+	resolvedTarget, err := filepath.EvalSymlinks(candidateAbs)
+	if err != nil {
+		return "", fmt.Errorf("pathutil: resolve target links: %w", err)
+	}
+	if !IsWithin(resolvedTarget, resolvedRoot) {
+		return "", fmt.Errorf("%w after resolution: %s", ErrNotDescendant, resolvedTarget)
+	}
+	if SamePath(resolvedTarget, resolvedRoot) && !opts.AllowRoot {
+		return "", fmt.Errorf("%w after resolution: target must not equal root", ErrNotDescendant)
+	}
+	return resolvedTarget, nil
+}
+
+func validateExistingPathSegment(path string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return ErrSymlink
+	}
+	if isReparsePoint(path) {
+		return ErrReparsePoint
+	}
+	return nil
 }
 
 // FirstMatchedPattern returns the first pattern matching p.

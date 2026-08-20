@@ -1,12 +1,14 @@
 package fsutil
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/weiweimhy/go-utils/v5/cryptoutil"
+	"github.com/weiweimhy/go-utils/v5/streamutil"
 )
 
 const (
@@ -18,12 +20,17 @@ const (
 
 // WriteOptions controls how WriteFile persists data.
 type WriteOptions struct {
-	DirPerm    os.FileMode
-	FilePerm   os.FileMode
-	Atomic     bool
-	Sync       bool
-	CreateDirs bool
+	DirPerm              os.FileMode // Directory mode used when CreateDirs is true.
+	FilePerm             os.FileMode // Mode used for new or replacement files.
+	Atomic               bool        // Write via a same-directory temporary file and rename.
+	Sync                 bool        // Sync file data before closing.
+	RequireDirSync       bool        // Also require a parent directory sync after an atomic rename.
+	CreateDirs           bool        // Create missing parent directories.
+	PreserveExistingPerm bool        // Reuse an existing target file's permission bits.
 }
+
+// ErrFileTooLarge aliases streamutil.ErrLimitExceeded for limited file reads.
+var ErrFileTooLarge = streamutil.ErrLimitExceeded
 
 func (opts WriteOptions) withDefaults() WriteOptions {
 	if opts.DirPerm == 0 {
@@ -31,6 +38,9 @@ func (opts WriteOptions) withDefaults() WriteOptions {
 	}
 	if opts.FilePerm == 0 {
 		opts.FilePerm = DefaultFilePerm
+	}
+	if opts.RequireDirSync {
+		opts.Sync = true
 	}
 	return opts
 }
@@ -64,6 +74,14 @@ func WriteFile(path string, data []byte, opts WriteOptions) error {
 
 	if opts.CreateDirs {
 		if err := EnsureParentDir(path, opts.DirPerm); err != nil {
+			return err
+		}
+	}
+	if opts.PreserveExistingPerm {
+		info, err := os.Stat(path)
+		if err == nil {
+			opts.FilePerm = info.Mode().Perm()
+		} else if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	}
@@ -153,10 +171,24 @@ func writeFileAtomic(path string, data []byte, opts WriteOptions) error {
 	}
 	keepTemp = true
 
-	if opts.Sync {
-		_ = syncDir(filepath.Dir(path))
+	if opts.RequireDirSync {
+		if err := syncDir(filepath.Dir(path)); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// ReadFileLimited reads path while enforcing maxBytes during the read. A
+// non-positive maxBytes disables the limit. The returned data is never silently
+// truncated.
+func ReadFileLimited(path string, maxBytes int64) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return streamutil.ReadAllLimit(file, maxBytes)
 }
 
 func syncDir(dir string) error {

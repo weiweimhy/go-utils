@@ -429,6 +429,67 @@ func TestContextCancellation(t *testing.T) {
 	}
 }
 
+func TestValidateRequiresConfiguredIssuerAndAudience(t *testing.T) {
+	ctx := context.Background()
+	issuer, err := NewJWT(
+		WithSecret("test-secret-key-256-bits-long!!"),
+		WithIssuer("issuer-a"),
+		WithAudience("service-a"),
+	)
+	if err != nil {
+		t.Fatalf("NewJWT() error = %v", err)
+	}
+	tokens, err := issuer.Generate(ctx, "user123", nil)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wrongIssuer, err := NewJWT(
+		WithSecret("test-secret-key-256-bits-long!!"),
+		WithIssuer("issuer-b"),
+		WithAudience("service-a"),
+	)
+	if err != nil {
+		t.Fatalf("NewJWT() error = %v", err)
+	}
+	if _, err := wrongIssuer.Validate(ctx, tokens.AccessToken); err == nil {
+		t.Fatal("Validate() with wrong issuer succeeded")
+	}
+
+	wrongAudience, err := NewJWT(
+		WithSecret("test-secret-key-256-bits-long!!"),
+		WithIssuer("issuer-a"),
+		WithAudience("service-b"),
+	)
+	if err != nil {
+		t.Fatalf("NewJWT() error = %v", err)
+	}
+	if _, err := wrongAudience.Validate(ctx, tokens.AccessToken); err == nil {
+		t.Fatal("Validate() with wrong audience succeeded")
+	}
+}
+
+func TestTimeFuncControlsGenerationAndValidation(t *testing.T) {
+	fixed := time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC)
+	j, err := NewJWT(
+		WithSecret("test-secret-key-256-bits-long!!"),
+		WithTimeFunc(func() time.Time { return fixed }),
+	)
+	if err != nil {
+		t.Fatalf("NewJWT() error = %v", err)
+	}
+	tokens, err := j.Generate(context.Background(), "user123", nil)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if !tokens.ExpiresAt.Equal(fixed.Add(15 * time.Minute)) {
+		t.Fatalf("ExpiresAt = %s", tokens.ExpiresAt)
+	}
+	if _, err := j.Validate(context.Background(), tokens.AccessToken); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
 func TestCrossAlgorithmValidation(t *testing.T) {
 	// 测试：使用 HS256 签发的令牌不能被 RS256 验证（反之亦然）
 	privateKey := generateTestRSAKeyPair(t)

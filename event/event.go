@@ -69,6 +69,7 @@ type Bus struct {
 	nextHandlerID atomic.Uint64
 	closed        atomic.Bool
 	closeOnce     sync.Once
+	publishers    sync.WaitGroup
 	workers       sync.WaitGroup
 }
 
@@ -150,18 +151,21 @@ func (b *Bus) unsubscribe(eventType string, id uint64) {
 // It returns false when the bus is already closed.
 func (b *Bus) Publish(eventType string, data any) bool {
 	b.mu.RLock()
-	defer b.mu.RUnlock()
-
 	if b.closed.Load() {
+		b.mu.RUnlock()
 		return false
 	}
 
 	registered := b.handlers[eventType]
-	if len(registered) == 0 {
-		return true
-	}
-
+	handlers := make([]Handler, 0, len(registered))
 	for _, handler := range registered {
+		handlers = append(handlers, handler)
+	}
+	b.publishers.Add(1)
+	b.mu.RUnlock()
+	defer b.publishers.Done()
+
+	for _, handler := range handlers {
 		b.queue <- dispatchTask{
 			eventType: eventType,
 			data:      data,
@@ -249,8 +253,9 @@ func (b *Bus) Close() {
 	b.closeOnce.Do(func() {
 		b.mu.Lock()
 		b.closed.Store(true)
-		close(b.queue)
 		b.mu.Unlock()
+		b.publishers.Wait()
+		close(b.queue)
 		b.workers.Wait()
 	})
 }

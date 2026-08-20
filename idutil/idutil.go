@@ -54,6 +54,36 @@ func RandomBase64URL(prefix string, nBytes int) (string, error) {
 	return prefix + base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+// RandomDigits returns length crypto-random decimal digits without modulo bias.
+func RandomDigits(length int) (string, error) {
+	if length < 0 {
+		return "", fmt.Errorf("idutil: length must be non-negative")
+	}
+	if length == 0 {
+		return "", nil
+	}
+
+	digits := make([]byte, 0, length)
+	buffer := make([]byte, length)
+	for len(digits) < length {
+		if _, err := rand.Read(buffer); err != nil {
+			return "", err
+		}
+		for _, value := range buffer {
+			// 250 is the greatest multiple of ten below 256, so values in
+			// [0, 250) map evenly to decimal digits.
+			if value >= 250 {
+				continue
+			}
+			digits = append(digits, '0'+value%10)
+			if len(digits) == length {
+				break
+			}
+		}
+	}
+	return string(digits), nil
+}
+
 func randomBytes(nBytes int) ([]byte, error) {
 	if nBytes < 0 {
 		return nil, fmt.Errorf("idutil: nBytes must be non-negative")

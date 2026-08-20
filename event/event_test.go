@@ -1,6 +1,7 @@
 package event
 
 import (
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -190,4 +191,52 @@ func TestPublishConcurrentWithCloseDoesNotPanic(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	bus.Close()
 	wg.Wait()
+}
+
+func TestCloseCompletesAcceptedBackpressuredPublish(t *testing.T) {
+	bus := NewBus(WithWorkerCount(1), WithBufferSize(0))
+	handlerStarted := make(chan struct{})
+	var started sync.Once
+	var calls atomic.Int32
+	for range 3 {
+		_, ok := bus.Subscribe("tick", func(eventType string, data any) {
+			started.Do(func() { close(handlerStarted) })
+			for !bus.IsClosed() {
+				runtime.Gosched()
+			}
+			calls.Add(1)
+		})
+		if !ok {
+			t.Fatal("expected subscribe to succeed")
+		}
+	}
+
+	published := make(chan bool, 1)
+	go func() {
+		published <- bus.Publish("tick", nil)
+	}()
+	<-handlerStarted
+	select {
+	case result := <-published:
+		t.Fatalf("backpressured Publish() returned early: %v", result)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		bus.Close()
+		close(closed)
+	}()
+
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("Close() blocked behind a backpressured Publish()")
+	}
+	if result := <-published; !result {
+		t.Fatal("accepted Publish() should complete successfully")
+	}
+	if got := calls.Load(); got != 3 {
+		t.Fatalf("delivered handler calls = %d, want 3", got)
+	}
 }

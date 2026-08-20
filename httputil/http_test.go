@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -34,6 +35,51 @@ func TestGetBytesFromURLStatusError(t *testing.T) {
 	var statusErr *StatusError
 	if !errors.As(err, &statusErr) || statusErr.StatusCode != http.StatusBadGateway {
 		t.Fatalf("expected status error, got %v", err)
+	}
+}
+
+func TestDefaultSuccessStatusAcceptsAny2xx(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte("created"))
+	}))
+	defer server.Close()
+
+	data, err := GetBytes(context.Background(), server.URL, Options{})
+	if err != nil || string(data) != "created" {
+		t.Fatalf("GetBytes() = %q, %v", data, err)
+	}
+}
+
+func TestStatusErrorRedactsURLAndDoesNotCaptureBodyByDefault(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "private error response", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	_, err := GetBytes(context.Background(), server.URL+"?access_token=secret", Options{})
+	var statusErr *StatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("GetBytes() error = %v, want StatusError", err)
+	}
+	if strings.Contains(statusErr.URL, "secret") || len(statusErr.Body) != 0 {
+		t.Fatalf("unsafe status error: %+v", statusErr)
+	}
+}
+
+func TestStatusErrorCapturesLimitedBodyWhenRequested(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "private error response", http.StatusBadGateway)
+	}))
+	defer server.Close()
+
+	_, err := GetBytes(context.Background(), server.URL, Options{CaptureErrorBody: true, MaxErrorBodyBytes: 4})
+	var statusErr *StatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("GetBytes() error = %v, want StatusError", err)
+	}
+	if len(statusErr.Body) != 0 {
+		t.Fatalf("captured body = %q, want omitted body after limit", statusErr.Body)
 	}
 }
 
@@ -76,5 +122,30 @@ func TestPostJSON(t *testing.T) {
 	}
 	if !got.OK || got.Name != "alice" {
 		t.Fatalf("PostJSON() = %+v", got)
+	}
+}
+
+func TestDoJSONDoesNotMutateCallerHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	}))
+	defer server.Close()
+
+	headers := make(http.Header)
+	headers.Set("X-Request-ID", "request-1")
+	_, err := PostJSON[map[string]bool](context.Background(), server.URL, map[string]bool{"request": true}, Options{
+		Headers: headers,
+	})
+	if err != nil {
+		t.Fatalf("PostJSON() error = %v", err)
+	}
+	if got := headers.Get("Content-Type"); got != "" {
+		t.Fatalf("caller Content-Type = %q, want empty", got)
+	}
+	if got := headers.Get("Accept"); got != "" {
+		t.Fatalf("caller Accept = %q, want empty", got)
+	}
+	if got := headers.Get("X-Request-ID"); got != "request-1" {
+		t.Fatalf("caller header changed: %q", got)
 	}
 }

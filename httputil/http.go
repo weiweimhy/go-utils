@@ -10,36 +10,61 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/weiweimhy/go-utils/v5/securityutil"
+	"github.com/weiweimhy/go-utils/v5/streamutil"
+)
+
+const (
+	// DefaultTimeout is used by NewClient when no positive timeout is supplied.
+	DefaultTimeout time.Duration = 30 * time.Second
+
+	defaultErrorBodyMaxBytes int64 = 64 << 10
 )
 
 var (
 	// DefaultHTTPClient 提供带超时的、生产环境安全的 HTTP 客户端。
 	// 避免直接使用 http.Get/http.DefaultClient，因为它们没有默认超时。
 	DefaultHTTPClient = &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   10 * time.Second,
-				KeepAlive: 30 * time.Second,
-			}).DialContext,
-			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
+		Timeout:   DefaultTimeout,
+		Transport: newDefaultTransport(),
 	}
 
 	// ErrResponseTooLarge is returned when an Options.MaxBytes limit is exceeded.
 	ErrResponseTooLarge = errors.New("httputil: response body exceeds max bytes")
 )
 
+func newDefaultTransport() *http.Transport {
+	return &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+}
+
+// NewClient creates an independent client with the package's safe transport
+// defaults. A non-positive timeout uses DefaultTimeout.
+func NewClient(timeout time.Duration) *http.Client {
+	if timeout <= 0 {
+		timeout = DefaultTimeout
+	}
+	return &http.Client{Timeout: timeout, Transport: newDefaultTransport()}
+}
+
 // StatusError describes an HTTP response status outside the allowed set.
 type StatusError struct {
 	StatusCode int
-	URL        string
-	Body       []byte
+	// URL is redacted before the error is returned.
+	URL string
+	// Body is available only when Options.CaptureErrorBody is true.
+	Body []byte
 }
 
 func (e *StatusError) Error() string {
@@ -48,10 +73,14 @@ func (e *StatusError) Error() string {
 
 // Options controls HTTP helper behavior.
 type Options struct {
-	Client        *http.Client
-	MaxBytes      int64
-	Headers       http.Header
-	AllowedStatus []int
+	Client            *http.Client
+	MaxBytes          int64
+	Headers           http.Header
+	AllowedStatus     []int
+	SuccessStatus     func(status int) bool
+	CaptureErrorBody  bool
+	MaxErrorBodyBytes int64
+	RedactURL         func(rawURL string) string
 }
 
 func (opts Options) client() *http.Client {
@@ -62,8 +91,11 @@ func (opts Options) client() *http.Client {
 }
 
 func (opts Options) statusAllowed(status int) bool {
+	if opts.SuccessStatus != nil {
+		return opts.SuccessStatus(status)
+	}
 	if len(opts.AllowedStatus) == 0 {
-		return status == http.StatusOK
+		return status >= http.StatusOK && status < http.StatusMultipleChoices
 	}
 	for _, allowed := range opts.AllowedStatus {
 		if status == allowed {
@@ -71,6 +103,13 @@ func (opts Options) statusAllowed(status int) bool {
 		}
 	}
 	return false
+}
+
+func (opts Options) redactedURL(rawURL string) string {
+	if opts.RedactURL != nil {
+		return opts.RedactURL(rawURL)
+	}
+	return securityutil.RedactURLQuery(rawURL)
 }
 
 // GetBytesFromURL 使用 Context 请求 URL 并返回字节流。
@@ -104,13 +143,27 @@ func DoBytes(ctx context.Context, method, url string, body io.Reader, opts Optio
 	}
 	defer resp.Body.Close()
 
+	if !opts.statusAllowed(resp.StatusCode) {
+		var data []byte
+		if opts.CaptureErrorBody {
+			maxBytes := opts.MaxErrorBodyBytes
+			if maxBytes <= 0 {
+				maxBytes = defaultErrorBodyMaxBytes
+			}
+			if opts.MaxBytes > 0 && opts.MaxBytes < maxBytes {
+				maxBytes = opts.MaxBytes
+			}
+			data, err = readBody(resp.Body, maxBytes)
+			if err != nil && !errors.Is(err, ErrResponseTooLarge) {
+				return nil, err
+			}
+		}
+		return nil, &StatusError{StatusCode: resp.StatusCode, URL: opts.redactedURL(url), Body: data}
+	}
+
 	data, err := readBody(resp.Body, opts.MaxBytes)
 	if err != nil {
 		return nil, err
-	}
-
-	if !opts.statusAllowed(resp.StatusCode) {
-		return nil, &StatusError{StatusCode: resp.StatusCode, URL: url, Body: data}
 	}
 
 	return data, nil
@@ -134,21 +187,20 @@ func GetString(ctx context.Context, url string, opts Options) (string, error) {
 func DoJSON[T any](ctx context.Context, method, url string, request any, opts Options) (T, error) {
 	var zero T
 	var body io.Reader
+	if opts.Headers != nil {
+		opts.Headers = opts.Headers.Clone()
+	} else {
+		opts.Headers = make(http.Header)
+	}
 	if request != nil {
 		data, err := json.Marshal(request)
 		if err != nil {
 			return zero, err
 		}
 		body = bytes.NewReader(data)
-		if opts.Headers == nil {
-			opts.Headers = make(http.Header)
-		}
 		if opts.Headers.Get("Content-Type") == "" {
 			opts.Headers.Set("Content-Type", "application/json")
 		}
-	}
-	if opts.Headers == nil {
-		opts.Headers = make(http.Header)
 	}
 	if opts.Headers.Get("Accept") == "" {
 		opts.Headers.Set("Accept", "application/json")
@@ -175,16 +227,9 @@ func PostJSON[T any](ctx context.Context, url string, value any, opts Options) (
 }
 
 func readBody(body io.Reader, maxBytes int64) ([]byte, error) {
-	if maxBytes <= 0 {
-		return io.ReadAll(body)
-	}
-	limited := io.LimitReader(body, maxBytes+1)
-	data, err := io.ReadAll(limited)
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(data)) > maxBytes {
+	data, err := streamutil.ReadAllLimit(body, maxBytes)
+	if errors.Is(err, streamutil.ErrLimitExceeded) {
 		return nil, ErrResponseTooLarge
 	}
-	return data, nil
+	return data, err
 }

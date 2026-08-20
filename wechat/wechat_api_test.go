@@ -28,6 +28,9 @@ func TestGetSessionSuccess(t *testing.T) {
 	oldClient := httputil.DefaultHTTPClient
 	httputil.DefaultHTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if got := r.URL.Query().Get("secret"); got != "secret" {
+				t.Fatalf("secret query = %q", got)
+			}
 			body := `{"openid":"oid","session_key":"sk"}`
 			return &http.Response{
 				StatusCode: http.StatusOK,

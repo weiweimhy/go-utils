@@ -51,7 +51,7 @@ func Open(path string, opts Options) (*Writer, error) {
 
 // Write appends one JSON record and a trailing newline.
 func (w *Writer) Write(record any) error {
-	if w == nil || w.file == nil {
+	if w == nil {
 		return os.ErrClosed
 	}
 	if w.redact != nil {
@@ -65,27 +65,36 @@ func (w *Writer) Write(record any) error {
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.file == nil {
+		return os.ErrClosed
+	}
 	_, err = w.file.Write(data)
 	return err
 }
 
 // Sync flushes buffered filesystem state.
 func (w *Writer) Sync() error {
-	if w == nil || w.file == nil {
+	if w == nil {
 		return os.ErrClosed
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.file == nil {
+		return os.ErrClosed
+	}
 	return w.file.Sync()
 }
 
 // Close closes the writer.
 func (w *Writer) Close() error {
-	if w == nil || w.file == nil {
+	if w == nil {
 		return nil
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.file == nil {
+		return nil
+	}
 	err := w.file.Close()
 	w.file = nil
 	return err
