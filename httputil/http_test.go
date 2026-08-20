@@ -152,6 +152,19 @@ func TestGetBytesMaxBytes(t *testing.T) {
 	}
 }
 
+func TestGetBytesAppliesDefaultMaxBytes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(make([]byte, DefaultMaxBytes+1))
+	}))
+	defer server.Close()
+
+	_, err := GetBytes(context.Background(), server.URL, Options{})
+	if !errors.Is(err, ErrResponseTooLarge) {
+		t.Fatalf("GetBytes() error = %v, want ErrResponseTooLarge", err)
+	}
+}
+
 func TestPostJSON(t *testing.T) {
 	type request struct {
 		Name string `json:"name"`

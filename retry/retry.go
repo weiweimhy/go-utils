@@ -61,6 +61,16 @@ func nextDelay(delay, maxDelay time.Duration) time.Duration {
 	if delay <= 0 {
 		return 0
 	}
+	if maxDelay > 0 && delay >= maxDelay {
+		return maxDelay
+	}
+	const maxDuration = time.Duration(1<<63 - 1)
+	if delay > maxDuration/2 {
+		if maxDelay > 0 {
+			return maxDelay
+		}
+		return maxDuration
+	}
 	next := delay * 2
 	if maxDelay > 0 && next > maxDelay {
 		return maxDelay

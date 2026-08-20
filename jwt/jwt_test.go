@@ -9,6 +9,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	jwtv5 "github.com/golang-jwt/jwt/v5"
 )
 
 const testIssuer = "https://issuer.example.test"
@@ -65,6 +67,22 @@ func TestNewJWT(t *testing.T) {
 				t.Errorf("NewJWT() unexpected error = %v", err)
 			}
 		})
+	}
+}
+
+func TestNewJWTRejectsHMACWithoutSecret(t *testing.T) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey() error = %v", err)
+	}
+
+	_, err = NewJWT(
+		WithPrivateKey(privateKey),
+		WithIssuer("issuer"),
+		WithSigningMethod(jwtv5.SigningMethodHS256),
+	)
+	if !errors.Is(err, ErrHMACSecretMissing) {
+		t.Fatalf("NewJWT() error = %v, want ErrHMACSecretMissing", err)
 	}
 }
 

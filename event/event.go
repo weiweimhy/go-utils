@@ -2,6 +2,8 @@ package event
 
 import (
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -71,6 +73,7 @@ type Bus struct {
 	closeOnce     sync.Once
 	publishers    sync.WaitGroup
 	workers       sync.WaitGroup
+	workerIDs     sync.Map
 }
 
 type dispatchTask struct {
@@ -249,6 +252,8 @@ func (b *Bus) IsClosed() bool {
 }
 
 // Close stops accepting new subscriptions and publish requests, then drains queued tasks.
+// When called by an async handler, it starts shutdown without waiting for that
+// handler's own dispatcher worker.
 func (b *Bus) Close() {
 	b.closeOnce.Do(func() {
 		b.mu.Lock()
@@ -256,22 +261,63 @@ func (b *Bus) Close() {
 		b.mu.Unlock()
 		b.publishers.Wait()
 		close(b.queue)
-		b.workers.Wait()
 	})
+
+	// A handler runs on one of the dispatcher workers. Waiting for every worker
+	// from that handler would include the caller and deadlock Close forever.
+	if b.isDispatcherWorker() {
+		return
+	}
+	b.workers.Wait()
 }
 
 func (b *Bus) runDispatcher() {
+	workerID := currentGoroutineID()
+	if workerID != 0 {
+		b.workerIDs.Store(workerID, struct{}{})
+		defer b.workerIDs.Delete(workerID)
+	}
 	for task := range b.queue {
 		b.safelyInvoke(task.handler, task.eventType, task.data)
 	}
 }
 
+func (b *Bus) isDispatcherWorker() bool {
+	workerID := currentGoroutineID()
+	if workerID == 0 {
+		return false
+	}
+	_, ok := b.workerIDs.Load(workerID)
+	return ok
+}
+
+func currentGoroutineID() uint64 {
+	var buffer [64]byte
+	n := runtime.Stack(buffer[:], false)
+	fields := strings.Fields(string(buffer[:n]))
+	if len(fields) < 2 || fields[0] != "goroutine" {
+		return 0
+	}
+	id, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return id
+}
+
 func (b *Bus) safelyInvoke(handler Handler, eventType string, data any) {
 	defer func() {
 		if recovered := recover(); recovered != nil && b.panicHandler != nil {
-			b.panicHandler(eventType, data, recovered)
+			b.safelyHandlePanic(eventType, data, recovered)
 		}
 	}()
 
 	handler(eventType, data)
+}
+
+func (b *Bus) safelyHandlePanic(eventType string, data any, recovered any) {
+	defer func() {
+		_ = recover()
+	}()
+	b.panicHandler(eventType, data, recovered)
 }

@@ -99,14 +99,15 @@ func (r *Redactor) Redact(s string) string {
 	return out
 }
 
-// RedactURL redacts URL user information and selected query keys. It falls
-// back to conservative raw-string redaction when parsing fails.
+// RedactURL redacts URL user information and selected query or fragment keys.
+// It falls back to conservative raw-string redaction when parsing fails.
 func RedactURL(rawURL string, keys ...string) string {
 	return redactURL(rawURL, querySecretKeys(keys), true)
 }
 
-// RedactURLQuery redacts selected query keys in a URL string while preserving
-// any user information. Use RedactURL when a value can appear in an error or log.
+// RedactURLQuery redacts selected query or fragment keys in a URL string while
+// preserving any user information. Use RedactURL when a value can appear in an
+// error or log.
 func RedactURLQuery(rawURL string, keys ...string) string {
 	return redactURL(rawURL, querySecretKeys(keys), false)
 }
@@ -133,7 +134,24 @@ func redactURL(rawURL string, sensitive map[string]struct{}, redactUserInfo bool
 		}
 	}
 	parsed.RawQuery = query.Encode()
+	parsed.Fragment = redactFragment(parsed.Fragment, sensitive)
 	return parsed.String()
+}
+
+func redactFragment(fragment string, sensitive map[string]struct{}) string {
+	if fragment == "" {
+		return ""
+	}
+	values, err := url.ParseQuery(fragment)
+	if err != nil {
+		return redactRawParameters(fragment, sensitive)
+	}
+	for key := range values {
+		if _, ok := sensitive[strings.ToLower(key)]; ok {
+			values.Set(key, "[REDACTED]")
+		}
+	}
+	return values.Encode()
 }
 
 func querySecretKeys(keys []string) map[string]struct{} {
@@ -150,10 +168,23 @@ func querySecretKeys(keys []string) map[string]struct{} {
 func redactRawQuery(rawURL string, sensitive map[string]struct{}) string {
 	prefix, rawQuery, found := strings.Cut(rawURL, "?")
 	if !found {
-		return rawURL
+		prefix, fragment, hasFragment := strings.Cut(rawURL, "#")
+		if !hasFragment {
+			return rawURL
+		}
+		return prefix + "#" + redactRawParameters(fragment, sensitive)
 	}
 	rawQuery, fragment, hasFragment := strings.Cut(rawQuery, "#")
-	parts := strings.Split(rawQuery, "&")
+	rawQuery = redactRawParameters(rawQuery, sensitive)
+	redacted := prefix + "?" + rawQuery
+	if hasFragment {
+		redacted += "#" + redactRawParameters(fragment, sensitive)
+	}
+	return redacted
+}
+
+func redactRawParameters(raw string, sensitive map[string]struct{}) string {
+	parts := strings.Split(raw, "&")
 	for i, part := range parts {
 		key, _, hasValue := strings.Cut(part, "=")
 		if !hasValue {
@@ -167,11 +198,7 @@ func redactRawQuery(rawURL string, sensitive map[string]struct{}) string {
 			parts[i] = key + "=[REDACTED]"
 		}
 	}
-	redacted := prefix + "?" + strings.Join(parts, "&")
-	if hasFragment {
-		redacted += "#" + fragment
-	}
-	return redacted
+	return strings.Join(parts, "&")
 }
 
 func redactRawURL(rawURL string, sensitive map[string]struct{}, redactUserInfo bool) string {

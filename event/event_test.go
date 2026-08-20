@@ -240,3 +240,54 @@ func TestCloseCompletesAcceptedBackpressuredPublish(t *testing.T) {
 		t.Fatalf("delivered handler calls = %d, want 3", got)
 	}
 }
+
+func TestCloseFromAsyncHandlerDoesNotDeadlock(t *testing.T) {
+	bus := NewBus(WithWorkerCount(1), WithBufferSize(1))
+	closedFromHandler := make(chan struct{})
+	_, ok := bus.Subscribe("tick", func(eventType string, data any) {
+		bus.Close()
+		close(closedFromHandler)
+	})
+	if !ok {
+		t.Fatal("expected subscribe to succeed")
+	}
+	if !bus.Publish("tick", nil) {
+		t.Fatal("expected async publish to succeed")
+	}
+
+	select {
+	case <-closedFromHandler:
+	case <-time.After(time.Second):
+		t.Fatal("Close called from a handler deadlocked")
+	}
+
+	// An external caller still observes completed worker shutdown.
+	bus.Close()
+}
+
+func TestPanicHandlerPanicDoesNotStopDispatcher(t *testing.T) {
+	bus := NewBus(
+		WithWorkerCount(1),
+		WithPanicHandler(func(eventType string, data any, recovered any) {
+			panic("panic handler failure")
+		}),
+	)
+	defer bus.Close()
+
+	if _, ok := bus.Subscribe("panic", func(string, any) { panic("handler failure") }); !ok {
+		t.Fatal("expected panic handler subscription to succeed")
+	}
+	dispatched := make(chan struct{})
+	if _, ok := bus.Subscribe("next", func(string, any) { close(dispatched) }); !ok {
+		t.Fatal("expected next handler subscription to succeed")
+	}
+	if !bus.Publish("panic", nil) || !bus.Publish("next", nil) {
+		t.Fatal("expected publishes to succeed")
+	}
+
+	select {
+	case <-dispatched:
+	case <-time.After(time.Second):
+		t.Fatal("panic callback stopped the dispatcher")
+	}
+}

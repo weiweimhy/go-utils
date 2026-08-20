@@ -6,15 +6,19 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/weiweimhy/go-utils/v6/fsutil"
 	"github.com/weiweimhy/go-utils/v6/httputil"
+	"github.com/weiweimhy/go-utils/v6/securityutil"
 	"github.com/weiweimhy/go-utils/v6/task"
 )
 
@@ -23,7 +27,15 @@ var (
 	ErrManagerClosed = errors.New("download: manager is closed")
 	// ErrManagerNotStarted is returned when adding work before Start.
 	ErrManagerNotStarted = errors.New("download: manager not started")
+	// ErrResponseTooLarge is returned when a response exceeds the configured download limit.
+	ErrResponseTooLarge = errors.New("download: response body exceeds max bytes")
+	// ErrCloseTimeout is returned when a cancelled download task does not finish in time.
+	ErrCloseTimeout = errors.New("download: manager close timeout")
 )
+
+// DefaultMaxBytes is the maximum response size accepted by a manager unless
+// WithMaxBytes overrides it.
+const DefaultMaxBytes int64 = 1 << 30
 
 // DownloadTask 表示一个下载任务
 type DownloadTask struct {
@@ -34,17 +46,23 @@ type DownloadTask struct {
 
 // DownloadManager 管理大规模并发下载任务
 type DownloadManager struct {
-	pool   *task.WorkerPool
-	client *http.Client
-	delay  time.Duration
+	mu       sync.Mutex
+	pool     *task.WorkerPool
+	client   *http.Client
+	delay    time.Duration
+	maxBytes int64
 
 	workers    int
 	bufferSize int
 	log        *slog.Logger
 
-	wg        sync.WaitGroup
-	closeOnce sync.Once
-	closed    atomic.Bool
+	wg          sync.WaitGroup
+	adders      sync.WaitGroup
+	closeOnce   sync.Once
+	closeDone   chan struct{}
+	closeErr    error
+	closed      bool
+	callbackIDs sync.Map
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -69,7 +87,21 @@ func WithDelay(d time.Duration) DMOption {
 
 // WithClient 设置自定义 HTTP 客户端
 func WithClient(c *http.Client) DMOption {
-	return func(dm *DownloadManager) { dm.client = c }
+	return func(dm *DownloadManager) {
+		if c != nil {
+			dm.client = c
+		}
+	}
+}
+
+// WithMaxBytes sets the maximum bytes written for each download. A negative
+// value explicitly disables the limit.
+func WithMaxBytes(maxBytes int64) DMOption {
+	return func(dm *DownloadManager) {
+		if maxBytes != 0 {
+			dm.maxBytes = maxBytes
+		}
+	}
 }
 
 // WithLogger sets an optional logger for manager lifecycle and failures.
@@ -78,28 +110,14 @@ func WithLogger(log *slog.Logger) DMOption {
 	return func(dm *DownloadManager) { dm.log = log }
 }
 
-// dmConfig 内部配置结构
-type dmConfig struct {
-	workers  int
-	chanSize int
-	delay    time.Duration
-	client   *http.Client
-}
-
-func defaultConfig() *dmConfig {
-	return &dmConfig{
-		workers:  20,
-		chanSize: 100,
-		client:   httputil.DefaultHTTPClient,
-	}
-}
-
 // NewDownloadManager 创建下载管理器
 func NewDownloadManager(opts ...DMOption) *DownloadManager {
 	dm := &DownloadManager{
 		client:     httputil.DefaultHTTPClient,
 		workers:    20,
 		bufferSize: 100,
+		maxBytes:   DefaultMaxBytes,
+		closeDone:  make(chan struct{}),
 	}
 	for _, opt := range opts {
 		opt(dm)
@@ -114,6 +132,11 @@ func (dm *DownloadManager) Start(ctx context.Context) error {
 
 // StartWithConfig 使用指定配置启动下载管理器
 func (dm *DownloadManager) StartWithConfig(ctx context.Context, workers, bufferSize int) error {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+	if dm.closed {
+		return ErrManagerClosed
+	}
 	if dm.pool != nil {
 		return nil // 已启动
 	}
@@ -143,30 +166,42 @@ func (dm *DownloadManager) Add(url, savePath string) error {
 
 // AddWithCallback 添加带回调的下载任务
 func (dm *DownloadManager) AddWithCallback(url, savePath string, callback func(url, savePath string, err error)) error {
-	if dm.closed.Load() {
+	dm.mu.Lock()
+	if dm.closed {
+		dm.mu.Unlock()
 		return ErrManagerClosed
 	}
 	if dm.pool == nil {
+		dm.mu.Unlock()
 		return ErrManagerNotStarted
 	}
+	dm.adders.Add(1)
+	pool := dm.pool
+	client := dm.client
+	delay := dm.delay
+	maxBytes := dm.maxBytes
+	log := dm.log
+	ctx := dm.ctx
+	dm.mu.Unlock()
+	defer dm.adders.Done()
 
 	dm.wg.Add(1)
 
-	submitted := dm.pool.SubmitFunc(func(ctx context.Context) {
+	submitted := pool.SubmitFunc(func(ctx context.Context) {
 		defer dm.wg.Done()
 
-		err := downloadFile(ctx, dm.client, url, savePath)
-		if err != nil && dm.log != nil {
-			dm.log.WarnContext(ctx, "download failed", "url", url, "path", savePath, "error", err)
+		err := downloadFile(ctx, client, url, savePath, maxBytes)
+		if err != nil && log != nil {
+			log.WarnContext(ctx, "download failed", "url", securityutil.RedactURL(url), "path", savePath, "error", err)
 		}
 
 		if callback != nil {
-			callback(url, savePath, err)
+			dm.invokeCallback(callback, url, savePath, err)
 		}
 
-		if dm.delay > 0 {
+		if delay > 0 {
 			select {
-			case <-time.After(dm.delay):
+			case <-time.After(delay):
 			case <-ctx.Done():
 			}
 		}
@@ -174,7 +209,10 @@ func (dm *DownloadManager) AddWithCallback(url, savePath string, callback func(u
 
 	if !submitted {
 		dm.wg.Done()
-		return dm.ctx.Err()
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return ErrManagerClosed
 	}
 
 	return nil
@@ -185,38 +223,109 @@ func (dm *DownloadManager) Wait() {
 	dm.wg.Wait()
 }
 
-// Close 关闭下载管理器
+// Close stops accepting work, cancels active downloads, and waits for their
+// callbacks to finish. It returns ErrCloseTimeout if a task ignores cancellation.
+// When called by a task callback, it starts shutdown and returns immediately to
+// avoid waiting for that callback to return.
 func (dm *DownloadManager) Close() error {
-	var err error
-	dm.closeOnce.Do(func() {
-		dm.closed.Store(true)
+	dm.closeOnce.Do(dm.beginClose)
+	if dm.inCallback() {
+		return nil
+	}
 
-		// 等待所有任务完成
+	timer := time.NewTimer(30 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-dm.closeDone:
+		dm.mu.Lock()
+		defer dm.mu.Unlock()
+		return dm.closeErr
+	case <-timer.C:
+		dm.mu.Lock()
+		if dm.closeErr == nil {
+			dm.closeErr = ErrCloseTimeout
+		}
+		dm.mu.Unlock()
+		return ErrCloseTimeout
+	}
+}
+
+func (dm *DownloadManager) invokeCallback(callback func(url, savePath string, err error), url, savePath string, err error) {
+	callbackID := currentGoroutineID()
+	if callbackID != 0 {
+		dm.callbackIDs.Store(callbackID, struct{}{})
+		defer dm.callbackIDs.Delete(callbackID)
+	}
+	callback(url, savePath, err)
+}
+
+func (dm *DownloadManager) inCallback() bool {
+	callbackID := currentGoroutineID()
+	if callbackID == 0 {
+		return false
+	}
+	_, ok := dm.callbackIDs.Load(callbackID)
+	return ok
+}
+
+func currentGoroutineID() uint64 {
+	var buffer [64]byte
+	n := runtime.Stack(buffer[:], false)
+	fields := strings.Fields(string(buffer[:n]))
+	if len(fields) < 2 || fields[0] != "goroutine" {
+		return 0
+	}
+	id, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return id
+}
+
+func (dm *DownloadManager) beginClose() {
+	dm.mu.Lock()
+	dm.closed = true
+	pool := dm.pool
+	cancel := dm.cancel
+	dm.mu.Unlock()
+
+	if pool != nil {
+		// A zero timeout initiates pool shutdown and cancels task contexts without
+		// waiting under the manager lifecycle lock.
+		pool.Close(0)
+	}
+	if cancel != nil {
+		cancel()
+	}
+
+	go func() {
+		dm.adders.Wait()
 		dm.wg.Wait()
-
-		if dm.pool != nil {
-			if !dm.pool.Close(30 * time.Second) {
-				err = fmt.Errorf("download manager close timeout")
-			}
+		if pool != nil {
+			// Wait for workers to finish queued cancellation callbacks. The return
+			// value is false because shutdown was intentionally initiated above.
+			pool.Close(30 * time.Second)
 		}
-
-		if dm.cancel != nil {
-			dm.cancel()
-		}
-	})
-	return err
+		dm.mu.Lock()
+		close(dm.closeDone)
+		dm.mu.Unlock()
+	}()
 }
 
 // downloadFile 下载单个文件
-func downloadFile(ctx context.Context, client *http.Client, url string, path string) error {
+func downloadFile(ctx context.Context, client *http.Client, url string, path string, maxBytes int64) error {
+	if client == nil {
+		return fmt.Errorf("download: HTTP client is required")
+	}
+	redactedURL := securityutil.RedactURL(url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return fmt.Errorf("create request failed: %w", err)
+		return &RequestError{URL: redactedURL, Err: err}
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("http request failed: %w", err)
+		return &RequestError{URL: redactedURL, Err: err}
 	}
 	defer resp.Body.Close()
 
@@ -224,13 +333,28 @@ func downloadFile(ctx context.Context, client *http.Client, url string, path str
 		return fmt.Errorf("http error: status %d", resp.StatusCode)
 	}
 
-	if err := writeResponseAtomic(path, resp.Body); err != nil {
+	if err := writeResponseAtomic(path, resp.Body, maxBytes); err != nil {
 		return fmt.Errorf("write file failed: %w", err)
 	}
 	return nil
 }
 
-func writeResponseAtomic(path string, body io.Reader) error {
+// RequestError reports a download request failure without exposing credentials
+// embedded in the URL.
+type RequestError struct {
+	URL string
+	Err error
+}
+
+func (e *RequestError) Error() string {
+	return fmt.Sprintf("download: request failed for %s", e.URL)
+}
+
+func (e *RequestError) Unwrap() error {
+	return e.Err
+}
+
+func writeResponseAtomic(path string, body io.Reader, maxBytes int64) error {
 	if err := fsutil.EnsureParentDir(path, fsutil.DefaultDirPerm); err != nil {
 		return err
 	}
@@ -256,8 +380,17 @@ func writeResponseAtomic(path string, body io.Reader) error {
 	if err := tmp.Chmod(fsutil.DefaultFilePerm); err != nil {
 		return err
 	}
-	if _, err := io.Copy(tmp, body); err != nil {
+	reader := body
+	var limited *io.LimitedReader
+	if maxBytes > 0 && maxBytes < math.MaxInt64 {
+		limited = &io.LimitedReader{R: body, N: maxBytes + 1}
+		reader = limited
+	}
+	if _, err := io.Copy(tmp, reader); err != nil {
 		return err
+	}
+	if limited != nil && limited.N == 0 {
+		return ErrResponseTooLarge
 	}
 	if err := tmp.Sync(); err != nil {
 		return err

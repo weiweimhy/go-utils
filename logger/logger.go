@@ -15,9 +15,8 @@ import (
 )
 
 var (
-	once        sync.Once
-	ctxKey      = struct{}{}
-	initialized bool // 标记是否已初始化，用于检测重复初始化
+	once   sync.Once
+	ctxKey = struct{}{}
 )
 
 // Options 包含 Logger 的所有配置项
@@ -64,15 +63,10 @@ func WithSampler(initial, thereafter int) Option {
 	}
 }
 
-// Init 使用 Functional Options 初始化全局 Logger
-// 注意：Init 和 InitDevelopment 只有第一次调用会生效，后续调用会打印警告
+// Init 使用 Functional Options 初始化全局 Logger。
+// Init 和 InitDevelopment 中最先调用者的配置生效，后续调用保持幂等。
 func Init(opts ...Option) {
-	if initialized {
-		fmt.Fprintln(os.Stderr, "logger: Init called but logger already initialized, ignoring")
-		return
-	}
 	once.Do(func() {
-		initialized = true
 		o := DefaultOptions()
 		for _, opt := range opts {
 			opt(o)
@@ -158,7 +152,11 @@ func NewCtxLogger(ctx context.Context, fields ...zap.Field) CtxLogger {
 
 // With 为当前 CtxLogger 附加字段，并返回新的 CtxLogger（同时更新 Ctx 中的 logger）
 func (cl CtxLogger) With(fields ...zap.Field) CtxLogger {
-	log := cl.Log.With(fields...)
+	log := cl.Log
+	if log == nil {
+		log = FromContext(cl.Ctx)
+	}
+	log = log.With(fields...)
 	ctx := ToContext(cl.Ctx, log)
 	return CtxLogger{
 		Ctx: ctx,
@@ -166,15 +164,10 @@ func (cl CtxLogger) With(fields ...zap.Field) CtxLogger {
 	}
 }
 
-// InitDevelopment 开发环境快捷初始化，输出彩色日志到控制台
-// 注意：Init 和 InitDevelopment 只有第一次调用会生效，后续调用会打印警告
+// InitDevelopment 开发环境快捷初始化，输出彩色日志到控制台。
+// Init 和 InitDevelopment 中最先调用者的配置生效，后续调用保持幂等。
 func InitDevelopment() {
-	if initialized {
-		fmt.Fprintln(os.Stderr, "logger: InitDevelopment called but logger already initialized, ignoring")
-		return
-	}
 	once.Do(func() {
-		initialized = true
 		encoderConfig := zapcore.EncoderConfig{
 			TimeKey:        "ts",
 			LevelKey:       "level",
@@ -208,6 +201,9 @@ func InitDevelopment() {
 
 // Trace 自动记录函数耗时与 Panic 捕获
 func Trace(log *zap.Logger, funcName string, fields ...zap.Field) func() {
+	if log == nil {
+		log = zap.L()
+	}
 	start := time.Now()
 	log.Debug("→ function entry", append(fields, zap.String("func", funcName))...)
 
@@ -232,6 +228,9 @@ func Trace(log *zap.Logger, funcName string, fields ...zap.Field) func() {
 
 // InvalidParam 统一参数错误处理
 func InvalidParam(log *zap.Logger, msg string, fields ...zap.Field) error {
+	if log == nil {
+		log = zap.L()
+	}
 	log.Error("invalid parameter",
 		append(fields,
 			zap.String("error", "invalid_param"),

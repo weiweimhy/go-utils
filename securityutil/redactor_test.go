@@ -54,6 +54,21 @@ func TestRedactURLQueryMalformedURL(t *testing.T) {
 	}
 }
 
+func TestRedactURLRedactsFragmentSecrets(t *testing.T) {
+	for _, rawURL := range []string{
+		"https://example.com/cb#access_token=secret&section=profile",
+		"https://example.com/%zz#access_token=secret&section=profile",
+	} {
+		got := RedactURL(rawURL)
+		if strings.Contains(got, "secret") {
+			t.Fatalf("RedactURL(%q) leaked fragment secret in %q", rawURL, got)
+		}
+		if !strings.Contains(got, "section=profile") {
+			t.Fatalf("RedactURL(%q) removed non-secret fragment data: %q", rawURL, got)
+		}
+	}
+}
+
 func TestDefaultRedactorCoversOAuthKeys(t *testing.T) {
 	redactor := DefaultRedactor()
 	input := "access_token=access-value refresh_token=refresh-value client_secret=client-value code=authorization-value"

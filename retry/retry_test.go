@@ -35,3 +35,14 @@ func TestDoStopsOnContextCancel(t *testing.T) {
 		t.Fatalf("Do() error = %v, want context.Canceled", err)
 	}
 }
+
+func TestNextDelayDoesNotOverflow(t *testing.T) {
+	const maxDuration = time.Duration(1<<63 - 1)
+	got := nextDelay(maxDuration/2+1, 0)
+	if got != maxDuration {
+		t.Fatalf("nextDelay() = %v, want %v", got, maxDuration)
+	}
+	if got := nextDelay(time.Hour, time.Minute); got != time.Minute {
+		t.Fatalf("nextDelay() with cap = %v, want %v", got, time.Minute)
+	}
+}

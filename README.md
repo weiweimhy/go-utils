@@ -141,7 +141,8 @@ data, err := httputil.GetBytes(ctx, "https://api.example.com/data", httputil.Opt
 ```
 
 `httputil` 默认接受任意 `2xx` 状态。非成功响应默认不保留响应体，且会脱敏
-OAuth 等 URL 查询参数；需要诊断响应体时须显式设置 `CaptureErrorBody`。
+OAuth 等 URL 查询参数和 fragment；需要诊断响应体时须显式设置 `CaptureErrorBody`。
+成功响应默认最多读取 2 MiB；将 `MaxBytes` 设为负数才会显式取消该限制。
 
 ### 严格 JSON 边界解码
 

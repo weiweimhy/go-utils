@@ -1,6 +1,9 @@
 package httputil
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestGetGitHubRawURL(t *testing.T) {
 	got, err := GetGitHubRawURL("https://github.com/owner/repo/tree/main/path/to/file.pdf")
@@ -10,5 +13,15 @@ func TestGetGitHubRawURL(t *testing.T) {
 	want := "https://raw.githubusercontent.com/owner/repo/main/"
 	if got != want {
 		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestGetGitHubRawURLRedactsInvalidURL(t *testing.T) {
+	_, err := GetGitHubRawURL("https://github.com/owner/repo/blob/main/file?access_token=secret")
+	if err == nil {
+		t.Fatal("expected invalid tree URL error")
+	}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("invalid URL error leaked secret: %v", err)
 	}
 }

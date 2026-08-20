@@ -18,6 +18,9 @@ import (
 const (
 	// DefaultTimeout is used by NewClient when no positive timeout is supplied.
 	DefaultTimeout time.Duration = 30 * time.Second
+	// DefaultMaxBytes bounds successful response bodies when callers do not
+	// provide an explicit limit.
+	DefaultMaxBytes int64 = 2 << 20
 
 	defaultErrorBodyMaxBytes int64 = 64 << 10
 )
@@ -89,7 +92,9 @@ func (e *RequestError) Unwrap() error {
 
 // Options controls HTTP helper behavior.
 type Options struct {
-	Client            *http.Client
+	Client *http.Client
+	// MaxBytes limits successful response bodies. A zero value uses
+	// DefaultMaxBytes; a negative value explicitly disables the limit.
 	MaxBytes          int64
 	Headers           http.Header
 	AllowedStatus     []int
@@ -130,6 +135,13 @@ func (opts Options) redactedURL(rawURL string) string {
 	return securityutil.RedactURL(rawURL)
 }
 
+func (opts Options) responseMaxBytes() int64 {
+	if opts.MaxBytes == 0 {
+		return DefaultMaxBytes
+	}
+	return opts.MaxBytes
+}
+
 // GetBytesFromURL 使用 Context 请求 URL 并返回字节流。
 func GetBytesFromURL(ctx context.Context, url string) ([]byte, error) {
 	return GetBytes(ctx, url, Options{})
@@ -168,8 +180,9 @@ func DoBytes(ctx context.Context, method, url string, body io.Reader, opts Optio
 			if maxBytes <= 0 {
 				maxBytes = defaultErrorBodyMaxBytes
 			}
-			if opts.MaxBytes > 0 && opts.MaxBytes < maxBytes {
-				maxBytes = opts.MaxBytes
+			responseMaxBytes := opts.responseMaxBytes()
+			if responseMaxBytes > 0 && responseMaxBytes < maxBytes {
+				maxBytes = responseMaxBytes
 			}
 			data, err = readBody(resp.Body, maxBytes)
 			if err != nil && !errors.Is(err, ErrResponseTooLarge) {
@@ -179,7 +192,7 @@ func DoBytes(ctx context.Context, method, url string, body io.Reader, opts Optio
 		return nil, &StatusError{StatusCode: resp.StatusCode, URL: opts.redactedURL(url), Body: data}
 	}
 
-	data, err := readBody(resp.Body, opts.MaxBytes)
+	data, err := readBody(resp.Body, opts.responseMaxBytes())
 	if err != nil {
 		return nil, err
 	}

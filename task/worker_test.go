@@ -93,3 +93,72 @@ func TestWorkerPoolCloseRejectsNewTasks(t *testing.T) {
 		t.Fatal("submit should fail after close")
 	}
 }
+
+func TestWorkerPoolCloseCancelsBlockedSubmit(t *testing.T) {
+	pool := NewWorkerPool(
+		context.Background(),
+		WithWorkerCount(1),
+		WithBufferSize(1),
+	)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	if !pool.SubmitFunc(func(ctx context.Context) {
+		close(started)
+		<-release
+	}) {
+		t.Fatal("expected first task to be accepted")
+	}
+	<-started
+	if !pool.SubmitFunc(func(context.Context) {}) {
+		t.Fatal("expected queued task to be accepted")
+	}
+
+	submitResult := make(chan bool, 1)
+	go func() {
+		submitResult <- pool.SubmitFunc(func(context.Context) {})
+	}()
+
+	if pool.Close(20 * time.Millisecond) {
+		t.Fatal("expected close to time out while a task is blocked")
+	}
+	if submitted := <-submitResult; submitted {
+		t.Fatal("blocked submit should fail after close cancels the pool")
+	}
+
+	close(release)
+	if pool.Close(time.Second) {
+		t.Fatal("a pool that timed out must keep reporting a non-graceful close")
+	}
+}
+
+func TestWorkerPoolCloseFromTaskDoesNotDeadlock(t *testing.T) {
+	pool := NewWorkerPool(context.Background(), WithWorkerCount(1))
+	closedFromTask := make(chan struct{})
+	if !pool.SubmitFunc(func(context.Context) {
+		if pool.Close(time.Second) {
+			t.Error("Close() from a worker should not claim synchronous completion")
+		}
+		close(closedFromTask)
+	}) {
+		t.Fatal("expected task to be accepted")
+	}
+
+	select {
+	case <-closedFromTask:
+	case <-time.After(time.Second):
+		t.Fatal("Close() from a task deadlocked")
+	}
+	if !pool.Close(time.Second) {
+		t.Fatal("external Close() should observe graceful completion")
+	}
+}
+
+func TestTaskGroupWaitSealsSubmissions(t *testing.T) {
+	pool := NewWorkerPool(context.Background())
+	defer pool.Close(time.Second)
+	group := pool.NewGroup()
+	group.Wait()
+	if group.SubmitFunc(func(context.Context) {}) {
+		t.Fatal("group should reject submissions after Wait starts")
+	}
+}

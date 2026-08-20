@@ -11,10 +11,13 @@ import (
 func GoroutineID() uint64 {
 	var buf [64]byte
 	n := runtime.Stack(buf[:], false)
-	// 格式: "goroutine 123 [running]:\n..."
-	s := string(buf[:n])
-	s = strings.TrimPrefix(s, "goroutine ")
-	s = s[:strings.IndexByte(s, ' ')]
-	id, _ := strconv.ParseUint(s, 10, 64)
+	fields := strings.Fields(string(buf[:n]))
+	if len(fields) < 2 || fields[0] != "goroutine" {
+		return 0
+	}
+	id, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return 0
+	}
 	return id
 }

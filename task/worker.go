@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"runtime"
 	"runtime/debug"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -66,11 +68,16 @@ type WorkerPool struct {
 	log    *slog.Logger
 	id     uint64
 
-	stateMu   sync.RWMutex
-	tasks     chan Task
-	wait      sync.WaitGroup
-	closeOnce sync.Once
-	closed    atomic.Bool
+	stateMu      sync.Mutex
+	tasks        chan Task
+	submitters   sync.WaitGroup
+	wait         sync.WaitGroup
+	closeOnce    sync.Once
+	closeStarted chan struct{}
+	closeDone    chan struct{}
+	closed       atomic.Bool
+	timedOut     atomic.Bool
+	workerIDs    sync.Map
 }
 
 // NewWorkerPool 创建一个新的工作池。
@@ -87,7 +94,8 @@ func NewWorkerPool(ctx context.Context, opts ...WorkerPoolOption) *WorkerPool {
 		ctx = context.Background()
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	parentCtx := ctx
+	ctx, cancel := context.WithCancel(parentCtx)
 	poolID := workerPoolIDCounter.Add(1)
 	log := cfg.log
 	if log != nil {
@@ -102,11 +110,13 @@ func NewWorkerPool(ctx context.Context, opts ...WorkerPoolOption) *WorkerPool {
 	}
 
 	workerPool := &WorkerPool{
-		ctx:    ctx,
-		cancel: cancel,
-		log:    log,
-		id:     poolID,
-		tasks:  make(chan Task, cfg.bufferSize),
+		ctx:          ctx,
+		cancel:       cancel,
+		log:          log,
+		id:           poolID,
+		tasks:        make(chan Task, cfg.bufferSize),
+		closeStarted: make(chan struct{}),
+		closeDone:    make(chan struct{}),
 	}
 
 	for i := 0; i < cfg.workerCount; i++ {
@@ -116,32 +126,34 @@ func NewWorkerPool(ctx context.Context, opts ...WorkerPoolOption) *WorkerPool {
 			workerPool.workerLoop(index)
 		}(i)
 	}
+	go func() {
+		select {
+		case <-parentCtx.Done():
+			workerPool.Close(0)
+		case <-workerPool.closeStarted:
+		}
+	}()
 
 	return workerPool
 }
 
 func (w *WorkerPool) workerLoop(index int) {
+	workerID := currentGoroutineID()
+	if workerID != 0 {
+		w.workerIDs.Store(workerID, struct{}{})
+		defer w.workerIDs.Delete(workerID)
+	}
+
 	log := w.log
 	if log != nil {
 		log = log.With("worker_index", index)
 	}
 
-	for {
-		select {
-		case <-w.ctx.Done():
-			if log != nil {
-				log.DebugContext(w.ctx, "worker exit: context cancelled")
-			}
-			return
-		case task, ok := <-w.tasks:
-			if !ok {
-				if log != nil {
-					log.DebugContext(context.Background(), "worker exit: channel closed")
-				}
-				return
-			}
-			w.safeExecute(log, task)
-		}
+	for task := range w.tasks {
+		w.safeExecute(log, task)
+	}
+	if log != nil {
+		log.DebugContext(context.Background(), "worker exit: channel closed")
 	}
 }
 
@@ -160,11 +172,14 @@ func (w *WorkerPool) safeExecute(log *slog.Logger, task Task) {
 // Submit 提交一个任务到工作池
 // 返回 true 表示任务已提交，false 表示工作池已关闭
 func (w *WorkerPool) Submit(task Task) bool {
-	w.stateMu.RLock()
-	defer w.stateMu.RUnlock()
+	w.stateMu.Lock()
 	if w.closed.Load() {
+		w.stateMu.Unlock()
 		return false
 	}
+	w.submitters.Add(1)
+	w.stateMu.Unlock()
+	defer w.submitters.Done()
 
 	select {
 	case w.tasks <- task:
@@ -196,73 +211,104 @@ func (w *WorkerPool) IsClosed() bool {
 
 // Close 优雅关闭工作池
 // timeout: 等待所有任务完成的超时时间
-// 返回 true 表示正常关闭，false 表示超时
+// 返回 true 表示调用者观察到正常关闭，false 表示超时或调用者是池内任务。
+// 池内任务调用 Close 时只会发起关闭，避免等待自身退出造成死锁。
 func (w *WorkerPool) Close(timeout time.Duration) bool {
-	graceful := true
-
 	w.closeOnce.Do(func() {
+		close(w.closeStarted)
 		w.stateMu.Lock()
 		w.closed.Store(true)
-		close(w.tasks)
 		w.stateMu.Unlock()
-
-		done := make(chan struct{})
 		go func() {
+			w.submitters.Wait()
+			close(w.tasks)
 			w.wait.Wait()
-			close(done)
-		}()
-
-		select {
-		case <-done:
 			w.cancel()
-			if w.log != nil {
-				w.log.InfoContext(context.Background(), "worker pool closed gracefully")
-			}
-		case <-time.After(timeout):
+			close(w.closeDone)
+		}()
+	})
+	if w.isWorker() {
+		return false
+	}
+	if timeout <= 0 {
+		select {
+		case <-w.closeDone:
+			return !w.timedOut.Load()
+		default:
+			w.timedOut.Store(true)
 			w.cancel()
 			if w.log != nil {
 				w.log.WarnContext(context.Background(), "worker pool closed with timeout")
 			}
-			graceful = false
+			return false
 		}
-	})
+	}
 
-	return graceful
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-w.closeDone:
+		return !w.timedOut.Load()
+	case <-timer.C:
+		w.timedOut.Store(true)
+		w.cancel()
+		if w.log != nil {
+			w.log.WarnContext(context.Background(), "worker pool closed with timeout")
+		}
+		return false
+	}
+}
+
+func (w *WorkerPool) isWorker() bool {
+	workerID := currentGoroutineID()
+	if workerID == 0 {
+		return false
+	}
+	_, ok := w.workerIDs.Load(workerID)
+	return ok
+}
+
+func currentGoroutineID() uint64 {
+	var buffer [64]byte
+	n := runtime.Stack(buffer[:], false)
+	fields := strings.Fields(string(buffer[:n]))
+	if len(fields) < 2 || fields[0] != "goroutine" {
+		return 0
+	}
+	id, err := strconv.ParseUint(fields[1], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return id
 }
 
 // TaskGroup 用于分组等待一批任务完成
 type TaskGroup struct {
-	pool *WorkerPool
-	wg   sync.WaitGroup
+	pool   *WorkerPool
+	wg     sync.WaitGroup
+	mu     sync.Mutex
+	sealed bool
 }
 
 // Submit 向任务组提交任务
 func (g *TaskGroup) Submit(task Task) bool {
-	g.pool.stateMu.RLock()
-	defer g.pool.stateMu.RUnlock()
-	if g.pool.closed.Load() {
+	g.mu.Lock()
+	if g.sealed {
+		g.mu.Unlock()
 		return false
 	}
-
-	select {
-	case <-g.pool.ctx.Done():
-		return false
-	default:
-	}
-
 	g.wg.Add(1)
+	g.mu.Unlock()
+
 	wrapped := TaskFunc(func(ctx context.Context) {
 		defer g.wg.Done()
 		task.Execute(ctx)
 	})
-
-	select {
-	case g.pool.tasks <- wrapped:
+	if g.pool.Submit(wrapped) {
 		return true
-	case <-g.pool.ctx.Done():
-		g.wg.Done()
-		return false
 	}
+	g.wg.Done()
+	return false
 }
 
 // SubmitFunc 向任务组提交函数作为任务
@@ -272,5 +318,8 @@ func (g *TaskGroup) SubmitFunc(fn func(ctx context.Context)) bool {
 
 // Wait 等待任务组中的所有任务完成
 func (g *TaskGroup) Wait() {
+	g.mu.Lock()
+	g.sealed = true
+	g.mu.Unlock()
 	g.wg.Wait()
 }

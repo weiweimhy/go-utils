@@ -16,6 +16,10 @@ import (
 var (
 	// ErrKeyMissing indicates no signing or verification key was configured.
 	ErrKeyMissing = errors.New("jwt: signing or verification key is missing")
+	// ErrHMACSecretMissing indicates an HMAC signing method lacks a secret.
+	ErrHMACSecretMissing = errors.New("jwt: HMAC secret is missing")
+	// ErrUnsupportedSigningMethod indicates a method not implemented by this package.
+	ErrUnsupportedSigningMethod = errors.New("jwt: unsupported signing method")
 	// ErrIssuerRequired indicates no trusted issuer was configured.
 	ErrIssuerRequired = errors.New("jwt: issuer is required")
 	// ErrPrivateKeyMissing indicates a private key is required for signing.
@@ -224,9 +228,8 @@ func NewJWT(opts ...Option) (*JWT, error) {
 		}
 	}
 
-	// 验证密钥配置
-	if cfg.Secret == "" && cfg.PrivateKey == nil && cfg.PublicKey == nil {
-		return nil, ErrKeyMissing
+	if err := validateKeyConfig(cfg); err != nil {
+		return nil, err
 	}
 	cfg.Issuer = strings.TrimSpace(cfg.Issuer)
 	if cfg.Issuer == "" {
@@ -238,6 +241,25 @@ func NewJWT(opts ...Option) (*JWT, error) {
 		now = time.Now
 	}
 	return &JWT{cfg: cfg, now: now}, nil
+}
+
+func validateKeyConfig(cfg Config) error {
+	if cfg.SigningMethod == nil {
+		return ErrKeyMissing
+	}
+	switch cfg.SigningMethod.(type) {
+	case *jwt.SigningMethodHMAC:
+		if strings.TrimSpace(cfg.Secret) == "" {
+			return ErrHMACSecretMissing
+		}
+	case *jwt.SigningMethodRSA:
+		if cfg.PrivateKey == nil && cfg.PublicKey == nil {
+			return ErrKeyMissing
+		}
+	default:
+		return fmt.Errorf("%w: %T", ErrUnsupportedSigningMethod, cfg.SigningMethod)
+	}
+	return nil
 }
 
 // Generate 生成访问令牌和刷新令牌对。

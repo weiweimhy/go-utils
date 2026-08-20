@@ -11,7 +11,6 @@ import (
 
 func resetLoggerForTest() {
 	once = sync.Once{}
-	initialized = false
 	zap.ReplaceGlobals(zap.NewNop())
 }
 
@@ -33,7 +32,39 @@ func TestInitWritesLogFile(t *testing.T) {
 	L().Info("hello")
 	_ = L().Sync()
 
-	if !initialized {
-		t.Fatal("expected logger to be initialized")
+}
+
+func TestConcurrentInitIsIdempotent(t *testing.T) {
+	resetLoggerForTest()
+	var wg sync.WaitGroup
+	for range 16 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			Init(WithFilename(os.DevNull))
+		}()
+	}
+	wg.Wait()
+	if L() == nil {
+		t.Fatal("expected initialized logger")
+	}
+}
+
+func TestCtxLoggerWithHandlesZeroValue(t *testing.T) {
+	resetLoggerForTest()
+	updated := (CtxLogger{}).With(zap.String("key", "value"))
+	if updated.Log == nil {
+		t.Fatal("With() should use the global logger for a zero-value CtxLogger")
+	}
+	if updated.Ctx == nil {
+		t.Fatal("With() should create a context for a zero-value CtxLogger")
+	}
+}
+
+func TestLoggerHelpersHandleNilLogger(t *testing.T) {
+	resetLoggerForTest()
+	defer Trace(nil, "test")()
+	if err := InvalidParam(nil, "bad input"); err == nil {
+		t.Fatal("InvalidParam() should return an error")
 	}
 }

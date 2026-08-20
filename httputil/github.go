@@ -2,23 +2,25 @@ package httputil
 
 import (
 	"fmt"
-	"regexp"
+	"net/url"
+	"strings"
+
+	"github.com/weiweimhy/go-utils/v6/securityutil"
 )
 
-// GetGitHubRawURL 将 GitHub 浏览 URL 转换为 raw 下载 URL。
+// GetGitHubRawURL converts a GitHub tree URL to its raw-content base URL.
 func GetGitHubRawURL(browseURL string) (string, error) {
-	// 匹配 GitHub URL 格式: https://github.com/{owner}/{repo}/tree/{branch}/
-	re := regexp.MustCompile(`https://github\.com/([^/]+)/([^/]+)/tree/([^/]+)/?`)
-	matches := re.FindStringSubmatch(browseURL)
-	if len(matches) != 4 {
-		return "", fmt.Errorf("failed to parse GitHub URL: %s", browseURL)
+	parsed, err := url.Parse(browseURL)
+	if err != nil || parsed.Scheme != "https" || !strings.EqualFold(parsed.Host, "github.com") {
+		return "", fmt.Errorf("httputil: invalid GitHub tree URL: %s", securityutil.RedactURL(browseURL))
 	}
+	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
+	if len(parts) < 4 || parts[0] == "" || parts[1] == "" || parts[2] != "tree" || parts[3] == "" {
+		return "", fmt.Errorf("httputil: invalid GitHub tree URL: %s", securityutil.RedactURL(browseURL))
+	}
+	owner := parts[0]
+	repo := parts[1]
+	branch := parts[3]
 
-	owner := matches[1]
-	repo := matches[2]
-	branch := matches[3]
-
-	// 构建 raw URL
-	rawUrl := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/", owner, repo, branch)
-	return rawUrl, nil
+	return fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/", owner, repo, branch), nil
 }

@@ -62,20 +62,20 @@ func ExtractTextByTagWithAttr(htmlContent, tagName, attrName, attrValue string) 
 	var traverse func(*html.Node)
 	traverse = func(n *html.Node) {
 		if n.Type == html.ElementNode && strings.EqualFold(n.Data, tagName) {
+			attrFound := false
 			attrValueFound := ""
 			for _, attr := range n.Attr {
 				if strings.EqualFold(attr.Key, attrName) {
+					attrFound = true
 					attrValueFound = attr.Val
 					break
 				}
 			}
 
-			if attrValueFound != "" || attrValue == "" {
-				if attrValue == "" || attrValueFound == attrValue {
-					text := extractTextFromNode(n)
-					if text != "" {
-						results = append(results, text)
-					}
+			if attrFound && (attrValue == "" || attrValueFound == attrValue) {
+				text := extractTextFromNode(n)
+				if text != "" {
+					results = append(results, text)
 				}
 			}
 		}
