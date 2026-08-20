@@ -71,6 +71,22 @@ func (e *StatusError) Error() string {
 	return fmt.Sprintf("httputil: unexpected status %d for %s", e.StatusCode, e.URL)
 }
 
+// RequestError reports a request construction or transport failure without
+// exposing credentials embedded in the request URL. Err remains available via
+// errors.Is and errors.As.
+type RequestError struct {
+	URL string
+	Err error
+}
+
+func (e *RequestError) Error() string {
+	return fmt.Sprintf("httputil: request failed for %s", e.URL)
+}
+
+func (e *RequestError) Unwrap() error {
+	return e.Err
+}
+
 // Options controls HTTP helper behavior.
 type Options struct {
 	Client            *http.Client
@@ -80,7 +96,9 @@ type Options struct {
 	SuccessStatus     func(status int) bool
 	CaptureErrorBody  bool
 	MaxErrorBodyBytes int64
-	RedactURL         func(rawURL string) string
+	// RedactURL overrides default URL redaction for returned errors. It must not
+	// return credentials or other sensitive request data.
+	RedactURL func(rawURL string) string
 }
 
 func (opts Options) client() *http.Client {
@@ -109,7 +127,7 @@ func (opts Options) redactedURL(rawURL string) string {
 	if opts.RedactURL != nil {
 		return opts.RedactURL(rawURL)
 	}
-	return securityutil.RedactURLQuery(rawURL)
+	return securityutil.RedactURL(rawURL)
 }
 
 // GetBytesFromURL 使用 Context 请求 URL 并返回字节流。
@@ -129,7 +147,7 @@ func DoBytes(ctx context.Context, method, url string, body io.Reader, opts Optio
 	}
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
-		return nil, fmt.Errorf("create request failed: %w", err)
+		return nil, &RequestError{URL: opts.redactedURL(url), Err: err}
 	}
 	for key, values := range opts.Headers {
 		for _, value := range values {
@@ -139,7 +157,7 @@ func DoBytes(ctx context.Context, method, url string, body io.Reader, opts Optio
 
 	resp, err := opts.client().Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("http request failed: %w", err)
+		return nil, &RequestError{URL: opts.redactedURL(url), Err: err}
 	}
 	defer resp.Body.Close()
 

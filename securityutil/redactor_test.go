@@ -20,6 +20,23 @@ func TestRedactURLQuery(t *testing.T) {
 	}
 }
 
+func TestRedactURLRemovesUserInfoAndQuerySecrets(t *testing.T) {
+	for _, rawURL := range []string{
+		"https://client:password@example.com/cb?access_token=secret&ok=1",
+		"https://client:password@example.com/%zz?access_token=secret&ok=1",
+	} {
+		got := RedactURL(rawURL)
+		for _, secret := range []string{"client", "password", "secret"} {
+			if strings.Contains(got, secret) {
+				t.Fatalf("RedactURL(%q) leaked %q in %q", rawURL, secret, got)
+			}
+		}
+		if !strings.Contains(got, "ok=1") {
+			t.Fatalf("RedactURL(%q) removed non-secret query data: %q", rawURL, got)
+		}
+	}
+}
+
 func TestRedactURLQueryMalformedURL(t *testing.T) {
 	got := RedactURLQuery("https://example.com/%zz?token=secret&ok=1")
 	if strings.Contains(got, "secret") || !strings.Contains(got, "ok=1") {

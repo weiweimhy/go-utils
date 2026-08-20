@@ -99,20 +99,33 @@ func (r *Redactor) Redact(s string) string {
 	return out
 }
 
-// RedactURLQuery redacts selected query keys in a URL string.
+// RedactURL redacts URL user information and selected query keys. It falls
+// back to conservative raw-string redaction when parsing fails.
+func RedactURL(rawURL string, keys ...string) string {
+	return redactURL(rawURL, querySecretKeys(keys), true)
+}
+
+// RedactURLQuery redacts selected query keys in a URL string while preserving
+// any user information. Use RedactURL when a value can appear in an error or log.
 func RedactURLQuery(rawURL string, keys ...string) string {
+	return redactURL(rawURL, querySecretKeys(keys), false)
+}
+
+func redactURL(rawURL string, sensitive map[string]struct{}, redactUserInfo bool) string {
 	if rawURL == "" {
 		return ""
 	}
-	sensitive := querySecretKeys(keys)
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
-		return redactRawQuery(rawURL, sensitive)
+		return redactRawURL(rawURL, sensitive, redactUserInfo)
 	}
 
 	query, err := url.ParseQuery(parsed.RawQuery)
 	if err != nil {
-		return redactRawQuery(rawURL, sensitive)
+		return redactRawURL(rawURL, sensitive, redactUserInfo)
+	}
+	if redactUserInfo {
+		parsed.User = nil
 	}
 	for key := range query {
 		if _, ok := sensitive[strings.ToLower(key)]; ok {
@@ -159,6 +172,37 @@ func redactRawQuery(rawURL string, sensitive map[string]struct{}) string {
 		redacted += "#" + fragment
 	}
 	return redacted
+}
+
+func redactRawURL(rawURL string, sensitive map[string]struct{}, redactUserInfo bool) string {
+	redacted := redactRawQuery(rawURL, sensitive)
+	if !redactUserInfo {
+		return redacted
+	}
+	return redactRawUserInfo(redacted)
+}
+
+func redactRawUserInfo(rawURL string) string {
+	authorityStart := 0
+	switch {
+	case strings.HasPrefix(rawURL, "//"):
+		authorityStart = 2
+	case strings.Index(rawURL, "://") >= 0:
+		authorityStart = strings.Index(rawURL, "://") + len("://")
+	default:
+		return rawURL
+	}
+
+	authorityEnd := len(rawURL)
+	if offset := strings.IndexAny(rawURL[authorityStart:], "/?#"); offset >= 0 {
+		authorityEnd = authorityStart + offset
+	}
+	at := strings.LastIndex(rawURL[authorityStart:authorityEnd], "@")
+	if at < 0 {
+		return rawURL
+	}
+	at += authorityStart
+	return rawURL[:authorityStart] + "[REDACTED]@" + rawURL[at+1:]
 }
 
 // RedactLiterals replaces the supplied non-empty secret values wherever they

@@ -10,6 +10,12 @@ import (
 	"testing"
 )
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return fn(r)
+}
+
 func TestGetBytesFromURL(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
@@ -64,6 +70,57 @@ func TestStatusErrorRedactsURLAndDoesNotCaptureBodyByDefault(t *testing.T) {
 	}
 	if strings.Contains(statusErr.URL, "secret") || len(statusErr.Body) != 0 {
 		t.Fatalf("unsafe status error: %+v", statusErr)
+	}
+}
+
+func TestStatusErrorRedactsURLUserInfo(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	url := strings.Replace(server.URL, "http://", "http://client:password@", 1) + "?access_token=secret"
+	_, err := GetBytes(context.Background(), url, Options{})
+	var statusErr *StatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("GetBytes() error = %v, want StatusError", err)
+	}
+	for _, secret := range []string{"client", "password", "secret"} {
+		if strings.Contains(statusErr.URL, secret) || strings.Contains(statusErr.Error(), secret) {
+			t.Fatalf("StatusError leaked %q: %+v", secret, statusErr)
+		}
+	}
+}
+
+func TestRequestErrorRedactsURLAndUnwrapsCause(t *testing.T) {
+	sentinel := errors.New("transport failed")
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, sentinel
+	})}
+	url := "https://client:password@example.com/cb?access_token=secret"
+
+	_, err := GetBytes(context.Background(), url, Options{Client: client})
+	var requestErr *RequestError
+	if !errors.As(err, &requestErr) || !errors.Is(err, sentinel) {
+		t.Fatalf("GetBytes() error = %v, want wrapped transport error", err)
+	}
+	for _, secret := range []string{"client", "password", "secret"} {
+		if strings.Contains(requestErr.URL, secret) || strings.Contains(err.Error(), secret) {
+			t.Fatalf("RequestError leaked %q: %v", secret, err)
+		}
+	}
+}
+
+func TestRequestCreationErrorRedactsURL(t *testing.T) {
+	_, err := GetBytes(context.Background(), "https://client:password@example.com/%zz?access_token=secret", Options{})
+	var requestErr *RequestError
+	if !errors.As(err, &requestErr) {
+		t.Fatalf("GetBytes() error = %v, want RequestError", err)
+	}
+	for _, secret := range []string{"client", "password", "secret"} {
+		if strings.Contains(requestErr.URL, secret) || strings.Contains(err.Error(), secret) {
+			t.Fatalf("RequestError leaked %q: %v", secret, err)
+		}
 	}
 }
 
