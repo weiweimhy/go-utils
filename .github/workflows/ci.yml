@@ -16,6 +16,18 @@ jobs:
         module:
           - name: root
             path: .
+          - name: download
+            path: ./download
+          - name: epub
+            path: ./epub
+          - name: htmlutil
+            path: ./htmlutil
+          - name: jwt
+            path: ./jwt
+          - name: localdb
+            path: ./localdb
+          - name: logger
+            path: ./logger
           - name: mongo
             path: ./mongo
           - name: wechat
@@ -35,6 +47,15 @@ jobs:
         working-directory: ${{ matrix.module.path }}
         run: test -z "$(gofmt -l .)"
 
+      - name: Run vet
+        working-directory: ${{ matrix.module.path }}
+        run: go vet ./...
+
       - name: Run tests
         working-directory: ${{ matrix.module.path }}
         run: go test ./...
+
+      - name: Run race detector
+        if: matrix.module.name == 'root'
+        working-directory: ${{ matrix.module.path }}
+        run: go test -race ./...
