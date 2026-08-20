@@ -68,6 +68,7 @@ import "github.com/weiweimhy/go-utils/v5/jwt"
 | `httputil` | 默认超时 HTTP 客户端、大小限制、JSON helpers | 标准库 |
 | `idutil` | 序列号、随机 Hex/Base64URL ID | 标准库 |
 | `jsonfile` | 泛型 JSON 文件读写 | 标准库 |
+| `jsonutil` | 严格 JSON 解码、重复键检测 | 标准库 |
 | `maputil` | Sorted keys、clone、merge | 标准库 |
 | `pathutil` | 路径边界、相对路径清理、轻量 pattern | 标准库 |
 | `regexputil` | regexp 便捷函数 | 标准库 |
@@ -76,6 +77,7 @@ import "github.com/weiweimhy/go-utils/v5/jwt"
 | `securityutil` | 保守脱敏工具 | 标准库 |
 | `sliceutil` | Chunk、Unique、Map、Filter | 标准库 |
 | `syncutil` | OnceValueWithError、Semaphore | 标准库 |
+| `streamutil` | 限长读取、并发安全限长缓冲 | 标准库 |
 | `task` | 标准库日志接口的 worker pool | 标准库 |
 | `textutil` | 截断、单行摘要、控制字符清理 | 标准库 |
 | `timeutil` | 可取消 sleep、Clock、时间辅助 | 标准库 |
@@ -134,6 +136,41 @@ data, err := httputil.GetBytes(ctx, "https://api.example.com/data", httputil.Opt
     MaxBytes: 2 << 20,
 })
 ```
+
+`httputil` 默认接受任意 `2xx` 状态。非成功响应默认不保留响应体，且会脱敏
+OAuth 等 URL 查询参数；需要诊断响应体时须显式设置 `CaptureErrorBody`。
+
+### 严格 JSON 边界解码
+
+```go
+import "github.com/weiweimhy/go-utils/v5/jsonutil"
+
+type ProviderResponse struct {
+    ID string `json:"id"`
+}
+
+value, err := jsonutil.DecodeStrict[ProviderResponse](responseBody, 1<<20)
+```
+
+`DecodeStrict` 拒绝未知字段、重复对象键、尾随 JSON 值和超过指定字节限制的输入。
+
+### 不可信文件与路径
+
+```go
+import (
+    "github.com/weiweimhy/go-utils/v5/fsutil"
+    "github.com/weiweimhy/go-utils/v5/pathutil"
+)
+
+safePath, err := pathutil.ResolveExistingDescendant(workspace, userPath, pathutil.ResolveOptions{})
+data, err := fsutil.ReadFileLimited(safePath, 2<<20)
+```
+
+路径解析逐段拒绝符号链接与 Windows reparse point，但不能消除检查和使用之间的
+并发文件系统变化；授权和业务边界仍由调用方负责。
+
+原子写入时，`Sync` 只保证文件数据同步。若部署平台支持且业务必须感知父目录
+同步失败，可再设置 `RequireDirSync`；该选项会同时要求文件同步。
 
 ### 路径边界
 

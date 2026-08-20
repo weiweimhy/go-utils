@@ -5,7 +5,7 @@
 ## 安装
 
 ```bash
-go get github.com/weiweimhy/go-utils/v4/wechat
+go get github.com/weiweimhy/go-utils/v5/wechat
 ```
 
 ## 特性
@@ -19,7 +19,7 @@ go get github.com/weiweimhy/go-utils/v4/wechat
 ```go
 import (
 	"context"
-	"github.com/weiweimhy/go-utils/v4/wechat"
+	"github.com/weiweimhy/go-utils/v5/wechat"
 )
 
 func main() {
@@ -36,6 +36,6 @@ func main() {
 
 ## 版本说明
 
-- 模块路径：`github.com/weiweimhy/go-utils/v4/wechat`
-- 依赖根模块 `github.com/weiweimhy/go-utils/v4`
+- 模块路径：`github.com/weiweimhy/go-utils/v5/wechat`
+- 依赖根模块 `github.com/weiweimhy/go-utils/v5`
 - 发布时需要与根模块兼容的版本策略一并考虑
