@@ -1,6 +1,6 @@
 module github.com/weiweimhy/go-utils/mongo/v6
 
-go 1.24.0
+go 1.27.2
 
 require go.mongodb.org/mongo-driver/v2 v2.4.0
 

@@ -10,7 +10,7 @@
 
 - 根模块：通用、无业务语义的小包；不得引入第三方依赖。
 - 扩展子模块：`download`、`epub`、`htmlutil`、`jwt`、`localdb`、`logger`、
-  `mongo`、`tencentocr`、`wechat`；各自拥有 `go.mod`、依赖和测试。
+  `mongo`、`postgres`、`tencentocr`、`wechat`；各自拥有 `go.mod`、依赖和测试。
 - `internal/bench`：仅用于基准测试辅助，不作为对外 API。
 - `docs/`：项目事实、维护流程与详细标准；开始修改前先阅读相关文档。
 
@@ -36,7 +36,7 @@
 
 ## 开发与验证
 
-在变更所属模块目录中执行。根模块还必须通过 race 检测：
+在变更所属模块目录中执行。根模块和 `postgres` 模块还必须通过 race 检测：
 
 ```powershell
 gofmt -w <changed-go-files>
@@ -46,7 +46,10 @@ go test ./...
 go test -race ./...
 ```
 
-子模块执行前三项与 `go test ./...`；完整模块清单和 CI 对齐方式见
+`postgres` 还提供需 PostgreSQL 服务的集成测试；其连接方式与 CI 命令见
+[docs/development.md](docs/development.md)。
+
+其他子模块执行格式检查、vet 与 `go test ./...`；完整模块清单和 CI 对齐方式见
 [docs/development.md](docs/development.md)。质量要求与风险测试见
 [docs/testing-and-quality.md](docs/testing-and-quality.md)。
 
@@ -54,6 +57,6 @@ go test -race ./...
 
 1. 确认改动归属的包和模块，并阅读其测试与公开文档。
 2. 以最小 API 变更实现，补充涵盖成功、无效输入、失败和生命周期边界的测试。
-3. 运行该模块的格式、vet 和测试；修改根模块并涉及并发时运行 race。
+3. 运行该模块的格式、vet 和测试；根模块和 `postgres` 还要运行 race。
 4. 公共行为、模块边界或兼容性变化时，同步更新 README、包注释和 `docs/`。
 5. 提交前检查 `git diff`，不混入无关格式化、依赖更新或生成文件。

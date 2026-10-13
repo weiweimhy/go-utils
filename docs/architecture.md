@@ -32,10 +32,11 @@ flowchart TD
 | `localdb` | BBolt 本地键值存储 | 使用根模块与 BBolt |
 | `logger` | zap 与 lumberjack 日志辅助 | 使用 zap 与 lumberjack |
 | `mongo` | MongoDB 客户端包装 | 使用 MongoDB Go Driver |
+| `postgres` | PostgreSQL 连接池生命周期封装 | 使用 pgx v5 |
 | `tencentocr` | 腾讯云 OCR API 包装 | 使用腾讯云 SDK |
 | `wechat` | 微信小程序 session API 辅助 | 使用根模块 |
 
-`go.work` 将根模块与上述九个子模块置于同一开发工作区。每个模块单独拥有
+`go.work` 将根模块与上述十个子模块置于同一开发工作区。每个模块单独拥有
 `go.mod`；依赖、测试和发布兼容性要以模块为单位判断，而不是将仓库误当作单模块。
 
 ## 包与依赖规则
@@ -54,5 +55,6 @@ flowchart TD
 不在通用库中擅自输出日志。`event.Bus` 是进程内的订阅与调度机制，不是消息中间件；
 其 `Close` 会停止接收新工作并等待已接收队列排空。
 
-本仓库不定义集中式数据库、HTTP 路由、认证服务或数据迁移。`localdb`、`mongo` 与
-各平台子模块只是可选客户端能力，数据所有权和业务协议仍归使用这些包的下游项目。
+本仓库不定义集中式数据库、HTTP 路由、认证服务或数据迁移。`localdb`、`mongo`、
+`postgres` 与各平台子模块只是可选客户端能力，数据所有权和业务协议仍归使用这些包的
+下游项目。`postgres` 只负责创建并检查 pgx 连接池，不提供 CRUD、ORM、迁移或业务策略。

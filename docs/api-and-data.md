@@ -44,7 +44,17 @@ RPC、身份认证和领域数据契约。
 - `jsonfile` 提供泛型 JSON 文件读取与写入；`localdb` 则是独立的 BBolt 子模块。
 
 仓库没有统一数据存储、表结构或迁移目录。任何持久化格式、保留策略和事实来源均由使用
-这些工具的下游项目定义。
+这些工具的下游项目定义。`postgres` 是独立扩展模块，只封装 pgx 连接池的启动与生命周期，
+不提供 CRUD、ORM、迁移或业务策略。
+
+`postgres.NewPool(ctx, Config)` 返回原生 `*pgxpool.Pool`。`Config.StartupTimeout` 为零时
+默认使用 10 秒；负值和 nil 上下文会报错。这个超时只约束建池和启动 Ping，后续查询使用
+调用方传入的操作上下文。空 `ConnString` 沿用 pgx 的环境变量配置语义，连接串中的
+`pool_*` 参数由 pgx 处理。建池后必须 Ping 成功才会返回池；失败时会关闭池并返回错误。
+调用方负责消费并关闭查询返回的 `Rows`，并在事务结束时执行 `Commit` 或 `Rollback`。
+池的 `Close` 同步等待借出的连接归还，可重复调用。`NewPool` 错误的 `Error()` 文本经过
+固定脱敏，底层错误仍可通过 `errors.Is` 和 `errors.As` 检查；解包底层 pgx 错误可能暴露
+连接信息，包括连接串中的凭据。
 
 ## 进程内通信与生命周期
 

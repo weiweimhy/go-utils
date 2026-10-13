@@ -1,6 +1,6 @@
 module github.com/weiweimhy/go-utils/localdb/v6
 
-go 1.24.0
+go 1.27.2
 
 require (
 	github.com/weiweimhy/go-utils/v6 v6.1.0

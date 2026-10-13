@@ -30,6 +30,8 @@ jobs:
             path: ./logger
           - name: mongo
             path: ./mongo
+          - name: postgres
+            path: ./postgres
           - name: wechat
             path: ./wechat
           - name: tencentocr
@@ -41,7 +43,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.0'
+          go-version: '1.27.2'
 
       - name: Verify formatting
         working-directory: ${{ matrix.module.path }}
@@ -56,6 +58,39 @@ jobs:
         run: go test ./...
 
       - name: Run race detector
-        if: matrix.module.name == 'root'
+        if: matrix.module.name == 'root' || matrix.module.name == 'postgres'
         working-directory: ${{ matrix.module.path }}
         run: go test -race ./...
+
+  postgres-integration:
+    name: PostgreSQL integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: go_utils_test
+          POSTGRES_PASSWORD: go_utils_test
+          POSTGRES_DB: go_utils_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U go_utils_test -d go_utils_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      POSTGRES_TEST_DSN: postgres://go_utils_test:go_utils_test@localhost:5432/go_utils_test?sslmode=disable
+      GOWORK: 'off'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.2'
+
+      - name: Run PostgreSQL integration tests
+        working-directory: ./postgres
+        run: go test -race -run '^TestIntegration' ./...

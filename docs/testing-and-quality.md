@@ -10,7 +10,7 @@ go vet ./...
 go test ./...
 ```
 
-CI 还只对根模块执行：
+CI 对根模块和 `postgres` 模块执行：
 
 ```text
 go test -race ./...
@@ -27,6 +27,8 @@ go test -race ./...
 - `fsutil`、`pathutil`、`securityutil`、`jsonutil` 等安全相关包测试权限、路径、长度限制、
   脱敏和严格解码边界。
 - `localdb` 与 `task` 包包含可由 `go test` 执行的 Example；示例是公开用法的一部分。
+- `postgres` 的集成测试使用 `POSTGRES_TEST_DSN` 连接隔离的 PostgreSQL 服务；CI 使用
+  PostgreSQL 18 容器、临时测试账号和数据库，并执行 `go test -race -run '^TestIntegration' ./...`。
 
 ## 新测试要求
 
@@ -38,14 +40,14 @@ go test -race ./...
 - 新的安全边界，例如敏感信息、文件权限、路径解析和响应体限制。
 
 网络代码优先使用 `httptest` 或可注入客户端；文件测试使用测试临时目录；不要依赖真实
-外部账号、密钥、用户目录或非确定性的时间。并发测试必须等待 goroutine 完成，不能以
-任意 `Sleep` 掩盖生命周期问题。
+外部账号、密钥、用户目录或非确定性的时间。PostgreSQL 集成测试只连接专用测试服务。
+并发测试必须等待 goroutine 完成，不能以任意 `Sleep` 掩盖生命周期问题。
 
 ## 提交前检查
 
 1. 对改动的 Go 文件执行 `gofmt -w`，再确认 `gofmt -l .` 无输出。
 2. 在每个受影响模块执行 `go vet ./...` 和 `go test ./...`。
-3. 变更根模块的并发、同步、事件、任务或共享状态时，执行 `go test -race ./...`。
+3. 根模块和 `postgres` 执行 `go test -race ./...`；`postgres` 还须通过独立集成测试。
 4. 公共 API、默认值、错误、模块路径或安全语义变化时，检查 README、GoDoc 和 `docs/`。
 
 ## 高风险回归清单

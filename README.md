@@ -1,6 +1,6 @@
 # Go-Utils
 
-[![Go Version](https://img.shields.io/badge/Go-%3E%3D1.24-blue.svg)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.27.2-blue.svg)](https://golang.org)
 [![Go Reference](https://pkg.go.dev/badge/github.com/weiweimhy/go-utils/v6.svg)](https://pkg.go.dev/github.com/weiweimhy/go-utils/v6)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -16,7 +16,7 @@
 
 ## 环境要求
 
-- Go 1.24+
+- Go 1.27.2+
 
 ## 安装
 
@@ -34,6 +34,7 @@ go get github.com/weiweimhy/go-utils/jwt/v6
 go get github.com/weiweimhy/go-utils/localdb/v6
 go get github.com/weiweimhy/go-utils/logger/v6
 go get github.com/weiweimhy/go-utils/mongo/v6
+go get github.com/weiweimhy/go-utils/postgres/v6
 go get github.com/weiweimhy/go-utils/wechat/v6
 go get github.com/weiweimhy/go-utils/tencentocr/v6
 ```
@@ -96,12 +97,14 @@ v6 的 JWT 校验默认强制匹配受信任的签发者（issuer）。升级前
 | `localdb` | BBolt 本地 KV 存储 |
 | `logger` | zap + lumberjack 日志便捷封装 |
 | `mongo` | MongoDB 客户端封装 |
+| `postgres` | pgx PostgreSQL 连接池生命周期封装 |
 | `wechat` | 微信小程序 session API |
 | `tencentocr` | 腾讯云 OCR API 封装 |
 
 文档入口：
 
 - `mongo`：[mongo/README.md](mongo/README.md)
+- `postgres`：[postgres/README.md](postgres/README.md)
 - `wechat`：[wechat/README.md](wechat/README.md)
 - `tencentocr`：[tencentocr/README.md](tencentocr/README.md)
 

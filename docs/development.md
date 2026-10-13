@@ -2,7 +2,7 @@
 
 ## 环境
 
-仓库和 CI 均使用 Go 1.24.0。根目录的 `go.work` 将根模块和九个扩展模块放入同一
+仓库和 CI 均使用 Go 1.27.2。根目录的 `go.work` 将根模块和十个扩展模块放入同一
 工作区，因此日常开发应从仓库根目录或目标模块目录执行 Go 命令。
 
 本仓库是库项目，没有本地启动服务、环境变量模板或应用构建命令。`go test` 在验证时
@@ -19,6 +19,7 @@
 - `localdb`
 - `logger`
 - `mongo`
+- `postgres`
 - `tencentocr`
 - `wechat`
 
@@ -26,7 +27,7 @@
 
 ## 日常命令
 
-以下命令均由现有 GitHub Actions 工作流执行；在根模块运行时，额外执行 race 检测：
+以下命令均由现有 GitHub Actions 工作流执行；根模块和 `postgres` 额外执行 race 检测：
 
 ```powershell
 gofmt -l .
@@ -39,6 +40,19 @@ go test ./...
 ```powershell
 go test -race ./...
 ```
+
+`postgres` 模块也运行 race 检测。其集成测试使用 CI 提供的临时 PostgreSQL 18 服务和
+测试专用账号、数据库，通过 `POSTGRES_TEST_DSN` 配置连接。在 `postgres` 目录中关闭
+工作区模式，以独立模块执行（PowerShell 环境设置仅对当前进程生效）：
+
+```powershell
+$env:POSTGRES_TEST_DSN = "postgres://go_utils_test:go_utils_test@localhost:5432/go_utils_test?sslmode=disable"
+$env:GOWORK = "off"
+go test -race -run '^TestIntegration' ./...
+```
+
+不要将真实服务、账号或凭据用于集成测试。CI 的服务容器只用于测试，服务就绪后才运行该
+命令。未设置 `POSTGRES_TEST_DSN` 时，普通 `go test` 会跳过真实数据库集成测试。
 
 修改 Go 文件后，先格式化已改文件，再运行上述检查：
 
@@ -60,6 +74,6 @@ CI 的格式检查以 `gofmt -l .` 没有输出为通过条件。根模块和每
 ## 排错边界
 
 若 Go 命令的结果与预期不一致，先确认当前目录属于上面的模块清单，并检查变更是否同时
-影响了根模块与子模块。仓库没有定义运行时服务配置或集成环境；涉及 MongoDB、腾讯云、
-微信等外部系统的行为，应在对应子模块中以可控依赖和测试边界验证，不能假定本地服务已
-存在。
+影响了根模块与子模块。PostgreSQL 集成测试使用上文的隔离服务；涉及 MongoDB、腾讯云、
+微信等其他外部系统的行为，应在对应子模块中以可控依赖和测试边界验证，不能假定本地
+服务已经存在。

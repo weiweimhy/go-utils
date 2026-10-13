@@ -1,6 +1,6 @@
 module github.com/weiweimhy/go-utils/tencentocr/v6
 
-go 1.24.0
+go 1.27.2
 
 require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.5
