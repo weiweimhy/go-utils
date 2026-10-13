@@ -31,6 +31,10 @@ func TestCheckFileWorldWritable(t *testing.T) {
 	if err := os.WriteFile(path, []byte("ok"), 0666); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
+	// Creation permissions are filtered by umask; set the bits under test explicitly.
+	if err := os.Chmod(path, 0666); err != nil {
+		t.Fatalf("Chmod() error = %v", err)
+	}
 
 	_, err := CheckFile(path)
 	if !errors.Is(err, ErrWorldWritable) {
